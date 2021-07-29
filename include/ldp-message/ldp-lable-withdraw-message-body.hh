@@ -10,18 +10,20 @@ class LdpLableWithdrawMessageBody : public LdpMessageBody {
 public:
     uint16_t getType() const;
 
-    void addFecTlv(LdpFecTlv *tlv);
-    void addLabelTlv(LdpLabelTlv *tlv);
+    void addFecTlv(LdpRawTlv *tlv);
+    void addLabelTlv(LdpRawTlv *tlv);
 
     void clearFecTlvs();
     void clearLabelTlvs();
 
-    const std::vector<LdpFecTlv *> getFecTlvs() const;
-    const std::vector<LdpLabelTlv *> getLabelTlvs() const;
+    const std::vector<LdpRawTlv *> getFecTlvs() const;
+    const std::vector<LdpRawTlv *> getLabelTlvs() const;
+
+    const uint8_t* getRaw() const;
 
 private:
-    std::vector<LdpFecTlv *> _fecs;
-    std::vector<LdpFecTlv *> _labels;
+    std::vector<LdpRawTlv *> _fecs;
+    std::vector<LdpRawTlv *> _labels;
 
 // ----------------------------------------------------------------------------
 
