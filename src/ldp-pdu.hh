@@ -1,6 +1,5 @@
 #ifndef LDP_PDU_H
 #define LDP_PDU_H
-#include <memory>
 #include <vector>
 
 #include "serializable.hh"
@@ -10,6 +9,9 @@ namespace ldpd {
 
 class LdpPdu : public Serializable {
 public:
+    LdpPdu();
+    ~LdpPdu();
+
     uint16_t getVersion() const;
     uint16_t getLength() const;
     uint32_t getRouterId() const;
@@ -17,13 +19,22 @@ public:
 
     void setVersion(uint16_t version);
     void setLength(uint16_t version);
-    void setRouterId(uint16_t version);
+    void setRouterId(uint32_t version);
     void setLableSpace(uint16_t version);
 
-    void addTlv(const LdpTlv &tlv);
+    void addTlv(LdpRawTlv *tlv);
     void clearTlvs();
 
-    std::vector<std::shared_ptr<const LdpTlv>> getTlvs() const;
+    const std::vector<LdpRawTlv *> getTlvs() const;
+
+    uint16_t recalculateLength();
+
+private:
+    uint16_t _version;
+    uint16_t _length;
+    uint32_t _routerId;
+    uint16_t _labelSpace;
+    std::vector<LdpRawTlv *> _tlvs;
 
 // ----------------------------------------------------------------------------
 
@@ -33,7 +44,7 @@ public:
     ssize_t length() const;
 
 protected:
-    virtual ssize_t doPrint(size_t indent, uint8_t *to, size_t buf_sz) const = 0;
+    ssize_t doPrint(size_t indent, uint8_t *to, size_t buf_sz) const;
 
 };
 
