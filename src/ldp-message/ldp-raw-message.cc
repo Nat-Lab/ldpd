@@ -117,7 +117,7 @@ ssize_t LdpRawMessage::setLength(uint16_t length) {
  * @param size source buffer size.
  * @param src source buffer.
  * 
- * @return new body size.
+ * @return new buffer size (the entire message).
  */
 ssize_t LdpRawMessage::setRawBody(size_t size, const uint8_t *src) {
     size_t msg_hdr_sz = 2 * sizeof(uint16_t);
@@ -135,7 +135,7 @@ ssize_t LdpRawMessage::setRawBody(size_t size, const uint8_t *src) {
     memcpy(_raw_buffer + msg_hdr_sz, src, size);
     this->setLength(size);
 
-    return size;
+    return _raw_buffer_size;
 }
 
 // ----------------------------------------------------------------------------

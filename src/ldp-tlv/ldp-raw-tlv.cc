@@ -128,8 +128,10 @@ ssize_t LdpRawTlv::setLength(uint16_t length) {
  * 
  * @param size source buffer size.
  * @param src source buffer.
+ * 
+ * @returns new buffer length (the entire tlv).
  */
-void LdpRawTlv::setRawValue(size_t size, const uint8_t *src) {
+ssize_t LdpRawTlv::setRawValue(size_t size, const uint8_t *src) {
     size_t tlv_hdr_sz = 2 * sizeof(uint16_t);
 
     _raw_buffer_size = tlv_hdr_sz + size;
@@ -144,14 +146,18 @@ void LdpRawTlv::setRawValue(size_t size, const uint8_t *src) {
 
     memcpy(_raw_buffer + tlv_hdr_sz, src, size);
     this->setLength(size);
+
+    return _raw_buffer_size;
 }
 
 /**
  * @brief set value to the given value object. also updates len and type field.
  * 
  * @param value value object.
+ * 
+ * @return new buffer length (the entire tlv), or -1 on error.
  */
-void LdpRawTlv::setValue(const LdpTlvValue *value) {
+ssize_t LdpRawTlv::setValue(const LdpTlvValue *value) {
     if (_raw_buffer != nullptr) {
         free(_raw_buffer);
     }
@@ -168,10 +174,12 @@ void LdpRawTlv::setValue(const LdpTlvValue *value) {
     uint8_t *ptr = _raw_buffer;
     size_t buf_remaining = _raw_buffer_size;
 
-    PUTVAL_S(ptr, buf_remaining, uint16_t, val_type, htons, );
-    PUTVAL_S(ptr, buf_remaining, uint16_t, val_sz, htons, );
+    PUTVAL_S(ptr, buf_remaining, uint16_t, val_type, htons, -1);
+    PUTVAL_S(ptr, buf_remaining, uint16_t, val_sz, htons, -1);
 
     value->write(ptr, buf_remaining);
+
+    return _raw_buffer_size;
 }
 
 /**

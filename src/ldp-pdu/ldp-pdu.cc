@@ -59,36 +59,52 @@ uint16_t LdpPdu::getLabelSpace() const {
  * @brief set version field in the LDP PDU.
  * 
  * @param version version in host byte.
+ * 
+ * @return bytes changed.
  */
-void LdpPdu::setVersion(uint16_t version) {
+ssize_t LdpPdu::setVersion(uint16_t version) {
     _version = version;
+
+    return sizeof(_version);
 }
 
 /**
  * @brief set length field in the LDP PDU.
  * 
  * @param version length in host byte.
+ * 
+ * @return bytes changed.
  */
-void LdpPdu::setLength(uint16_t length) {
+ssize_t LdpPdu::setLength(uint16_t length) {
     _version = length;
+
+    return sizeof(_version);
 }
 
 /**
  * @brief set router id field in the LDP PDU.
  * 
  * @param version router id in network byte.
+ * 
+ * @return bytes changed.
  */
-void LdpPdu::setRouterId(uint32_t routerId) {
+ssize_t LdpPdu::setRouterId(uint32_t routerId) {
     _routerId = routerId;
+
+    return sizeof(_routerId);
 }
 
 /**
  * @brief set lable space field in the LDP PDU.
  * 
  * @param version lable space in host byte.
+ * 
+ * @return bytes changed.
  */
-void LdpPdu::setLableSpace(uint16_t lableSpace) {
+ssize_t LdpPdu::setLableSpace(uint16_t lableSpace) {
     _labelSpace = lableSpace;
+
+    return sizeof(_routerId);
 }
 
 /**
@@ -98,9 +114,12 @@ void LdpPdu::setLableSpace(uint16_t lableSpace) {
  * yourself after adding message to pdu. DO NOT pass local variable pointer.
  * 
  * @param message message 
+ * @returns bytes added.
  */
-void LdpPdu::addMessage(LdpRawMessage *message) {
+ssize_t LdpPdu::addMessage(LdpRawMessage *message) {
     _messages.push_back(message);
+
+    return message->length();
 }
 
 /**
@@ -130,9 +149,15 @@ const char* LdpPdu::getRouterIdString() const {
  * @brief set router id with IPv4 numbers-and-dots notation string.
  * 
  * @param id router id in IPv4 numbers-and-dots notation string.
+ * 
+ * @return bytes changed, or -1 on error.
  */
-void LdpPdu::setRouterIdString(const char* id) {
-    inet_pton(AF_INET, id, &_routerId);
+ssize_t LdpPdu::setRouterIdString(const char* id) {
+    if (inet_pton(AF_INET, id, &_routerId) != 1) {
+        return -1;
+    }
+
+    return sizeof(_routerId);
 }
 
 /**
@@ -179,10 +204,10 @@ ssize_t LdpPdu::parse(const uint8_t *from, size_t msg_sz) {
         return -1;
     }
 
-    GETVAL_S(ptr, buf_remaining, uint16_t, _version, ntohs);
-    GETVAL_S(ptr, buf_remaining, uint16_t, _length, ntohs);
-    GETVAL_S(ptr, buf_remaining, uint32_t, _routerId, );
-    GETVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, ntohs);
+    GETVAL_S(ptr, buf_remaining, uint16_t, _version, ntohs, -1);
+    GETVAL_S(ptr, buf_remaining, uint16_t, _length, ntohs, -1);
+    GETVAL_S(ptr, buf_remaining, uint32_t, _routerId, , -1);
+    GETVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, ntohs, -1);
 
     size_t msgs_len = _length - sizeof(_routerId) - sizeof(_labelSpace);
 
@@ -227,10 +252,10 @@ ssize_t LdpPdu::write(uint8_t *to, size_t buf_sz) const {
         return -1;
     }
 
-    PUTVAL_S(ptr, buf_remaining, uint16_t, _version, htons);
-    PUTVAL_S(ptr, buf_remaining, uint16_t, _length, htons);
-    PUTVAL_S(ptr, buf_remaining, uint32_t, _routerId, );
-    PUTVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, htons);
+    PUTVAL_S(ptr, buf_remaining, uint16_t, _version, htons, -1);
+    PUTVAL_S(ptr, buf_remaining, uint16_t, _length, htons, -1);
+    PUTVAL_S(ptr, buf_remaining, uint32_t, _routerId, , -1);
+    PUTVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, htons, -1);
 
     for (const LdpRawMessage *msg : _messages) {
         ssize_t ret = msg->write(ptr, buf_remaining);
