@@ -174,4 +174,56 @@ ssize_t LdpPdu::parse(const uint8_t *from, size_t msg_sz) {
     return ptr - from;
 }
 
+/**
+ * @brief write pdu to buffer.
+ * 
+ * @param to dst buffer.
+ * @param buf_sz size of dst buffer.
+ * @return ssize_t bytes written, or -1 on error.
+ */
+ssize_t LdpPdu::write(uint8_t *to, size_t buf_sz) const {
+    size_t len = this->length();
+
+    size_t buf_remaining = buf_sz;
+    uint8_t *ptr = to;
+
+    if (len > buf_sz) {
+        log_fatal("buf_sz (%zu) too small - can not fit pdu (size is %zu)\n", buf_sz, len);
+        return -1;
+    }
+
+    PUTVAL_S(ptr, buf_remaining, uint16_t, _version, htons);
+    PUTVAL_S(ptr, buf_remaining, uint16_t, _length, htons);
+    PUTVAL_S(ptr, buf_remaining, uint32_t, _routerId, );
+    PUTVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, htons);
+
+    for (const LdpRawTlv *tlv : _tlvs) {
+        ssize_t ret = tlv->write(ptr, buf_remaining);
+
+        if (ret < 0) {
+            return -1;
+        }
+
+        buf_remaining -= ret;
+        ptr += ret;
+    }
+
+    return ptr - to;
+}
+
+/**
+ * @brief get length of the pdu.
+ * 
+ * @return size_t 
+ */
+size_t LdpPdu::length() const {
+    size_t len = sizeof(_version) + sizeof(_length) + sizeof(_routerId) + sizeof(_labelSpace);
+
+    for (const LdpRawTlv *tlv : _tlvs) {
+        len += tlv->length();
+    }
+
+    return len;
+}
+
 }
