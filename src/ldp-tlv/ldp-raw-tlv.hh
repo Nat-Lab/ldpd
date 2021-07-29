@@ -22,6 +22,7 @@ public:
     ssize_t setLength(uint16_t length);
 
     void setRawValue(size_t rawValueSize, const uint8_t *src);
+    void setValue(const LdpTlvValue *value);
     
     LdpTlvValue* getParsedValue();
 
@@ -34,7 +35,7 @@ protected:
 public:
     ssize_t parse(const uint8_t *from, size_t msg_sz);
     ssize_t write(uint8_t *to, size_t buf_sz) const;
-    ssize_t length() const;
+    size_t length() const;
 };
 
 }

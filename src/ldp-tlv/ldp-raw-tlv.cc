@@ -206,7 +206,7 @@ ssize_t LdpRawTlv::write(uint8_t *to, size_t buf_sz) const {
  * 
  * @return size_t buffer size.
  */
-ssize_t LdpRawTlv::length() const {
+size_t LdpRawTlv::length() const {
     return _raw_buffer_size;
 }
 
