@@ -59,6 +59,17 @@ uint16_t LdpRawMessage::getLength() const {
 }
 
 /**
+ * @brief get id field in the mssage.
+ * 
+ * @return uint32_t id field in host byte order.
+ */
+uint32_t LdpRawMessage::getId() const {
+    NEED_MIN_BUFSZ((2 * sizeof(uint16_t)) + sizeof(uint32_t), 0);
+
+    return ntohl(((uint32_t *) _raw_buffer)[1]);
+}
+
+/**
  * @brief get current raw value buffer pointer.
  * 
  * note: this can return nullptr if not set.
@@ -134,6 +145,44 @@ ssize_t LdpRawMessage::setRawBody(size_t size, const uint8_t *src) {
 
     memcpy(_raw_buffer + msg_hdr_sz, src, size);
     this->setLength(size);
+
+    return _raw_buffer_size;
+}
+
+/**
+ * @brief set the raw value buffer with a message body.
+ * 
+ * note: this updates type and len field too.
+ * 
+ * @param value value.
+ * @return ssize_t buffer size (the entire message).
+ */
+ssize_t LdpRawMessage::setBody(const LdpMessageBody *value) {
+    uint32_t currentRid = this->getId();
+
+    if (_raw_buffer != nullptr) {
+        free(_raw_buffer);
+    }
+
+    size_t hdr_sz = sizeof(uint32_t) + 2 * sizeof(uint16_t);
+    size_t body_sz = value->length();
+
+    _raw_buffer_size = hdr_sz + body_sz;
+
+    _raw_buffer = (uint8_t *) malloc(_raw_buffer_size);
+
+    uint8_t *ptr = _raw_buffer;
+    size_t buf_remaining = _raw_buffer_size;
+
+    PUTVAL_S(ptr, buf_remaining, uint16_t, value->getType(), htons, -1);
+    PUTVAL_S(ptr, buf_remaining, uint16_t, value->length() + sizeof(uint32_t), htons, -1);
+    PUTVAL_S(ptr, buf_remaining, uint32_t, currentRid, htonl, -1);
+
+    ssize_t ret = value->write(ptr, buf_remaining);
+
+    if (ret < 0) {
+        return -1;
+    }
 
     return _raw_buffer_size;
 }
