@@ -20,7 +20,7 @@ public:
     ssize_t setVersion(uint16_t version);
     ssize_t setLength(uint16_t version);
     ssize_t setRouterId(uint32_t version);
-    ssize_t setLableSpace(uint16_t version);
+    ssize_t setLabelSpace(uint16_t version);
 
     ssize_t addMessage(LdpRawMessage *message);
     void clearMessages();

@@ -95,14 +95,14 @@ ssize_t LdpPdu::setRouterId(uint32_t routerId) {
 }
 
 /**
- * @brief set lable space field in the LDP PDU.
+ * @brief set label space field in the LDP PDU.
  * 
- * @param version lable space in host byte.
+ * @param version label space in host byte.
  * 
  * @return bytes changed.
  */
-ssize_t LdpPdu::setLableSpace(uint16_t lableSpace) {
-    _labelSpace = lableSpace;
+ssize_t LdpPdu::setLabelSpace(uint16_t labelSpace) {
+    _labelSpace = labelSpace;
 
     return sizeof(_routerId);
 }

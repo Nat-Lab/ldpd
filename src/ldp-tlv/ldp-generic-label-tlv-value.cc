@@ -29,7 +29,7 @@ uint32_t LdpGenericLabelTlvValue::getLabel() const {
 /**
  * @brief set label of this tlv.
  * 
- * @param label lable in host byte order. will be treated as 20 bit value on
+ * @param label label in host byte order. will be treated as 20 bit value on
  * write().
  * 
  * @return bytes changed.

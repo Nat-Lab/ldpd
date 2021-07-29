@@ -6,9 +6,8 @@
 namespace ldpd {
 
 class LdpFecTlv : public LdpTlvValue {
-
-protected:
-    
+public:
+    uint16_t getType() const;
 
 // ----------------------------------------------------------------------------
 
