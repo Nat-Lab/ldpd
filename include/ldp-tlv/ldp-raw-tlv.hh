@@ -21,8 +21,8 @@ public:
     ssize_t setType(uint16_t type);
     ssize_t setLength(uint16_t length);
 
-    void setRawValue(size_t rawValueSize, const uint8_t *src);
-    void setValue(const LdpTlvValue *value);
+    ssize_t setRawValue(size_t rawValueSize, const uint8_t *src);
+    ssize_t setValue(const LdpTlvValue *value);
     
     LdpTlvValue* getParsedValue() const;
 

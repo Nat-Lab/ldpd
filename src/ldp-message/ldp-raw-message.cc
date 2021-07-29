@@ -116,8 +116,10 @@ ssize_t LdpRawMessage::setLength(uint16_t length) {
  * 
  * @param size source buffer size.
  * @param src source buffer.
+ * 
+ * @return new body size.
  */
-void LdpRawMessage::setRawBody(size_t size, const uint8_t *src) {
+ssize_t LdpRawMessage::setRawBody(size_t size, const uint8_t *src) {
     size_t msg_hdr_sz = 2 * sizeof(uint16_t);
 
     _raw_buffer_size = msg_hdr_sz + size;
@@ -132,6 +134,8 @@ void LdpRawMessage::setRawBody(size_t size, const uint8_t *src) {
 
     memcpy(_raw_buffer + msg_hdr_sz, src, size);
     this->setLength(size);
+
+    return size;
 }
 
 // ----------------------------------------------------------------------------
@@ -153,8 +157,8 @@ ssize_t LdpRawMessage::parse(const uint8_t *from, size_t sz) {
 
     uint16_t type, msg_len;
 
-    GETVAL_S(buffer, buf_remaining, uint16_t, type, ntohs);
-    GETVAL_S(buffer, buf_remaining, uint16_t, msg_len, ntohs);
+    GETVAL_S(buffer, buf_remaining, uint16_t, type, ntohs, -1);
+    GETVAL_S(buffer, buf_remaining, uint16_t, msg_len, ntohs, -1);
 
     if (msg_len > buf_remaining) {
         log_fatal("msg_len (%zu) greater then remaining buffer (%zu), packet truncated?\n", msg_len, buf_remaining);
