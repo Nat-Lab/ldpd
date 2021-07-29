@@ -14,14 +14,16 @@ public:
 
     uint16_t getType() const;
     uint16_t getLength() const;
+    uint32_t getId() const;
 
     const uint8_t* peekRawBody() const;
 
     ssize_t setType(uint16_t type);
     ssize_t setLength(uint16_t length);
+    ssize_t setId(uint16_t length);
 
-    void setRawBody(size_t size, const uint8_t *src);
-    void setBody(const LdpMessageBody *value);
+    ssize_t setRawBody(size_t size, const uint8_t *src);
+    ssize_t setBody(const LdpMessageBody *value);
     
     LdpMessageBody* getParsedBody();
 
