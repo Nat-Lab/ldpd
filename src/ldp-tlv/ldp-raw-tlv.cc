@@ -94,6 +94,8 @@ ssize_t LdpRawTlv::setType(uint16_t type) {
     NEED_MIN_BUFSZ(sizeof(uint16_t), -1);
 
     ((uint16_t *) _raw_buffer)[0] = htons(type);
+
+    return sizeof(uint16_t);
 }
 
 /**
@@ -103,10 +105,12 @@ ssize_t LdpRawTlv::setType(uint16_t type) {
  * 
  * @return ssize_t bytes changed, or -1 on error.
  */
-ssize_t LdpRawTlv::setType(uint16_t length) {
+ssize_t LdpRawTlv::setLength(uint16_t length) {
     NEED_MIN_BUFSZ(2 * sizeof(uint16_t), -1);
 
     ((uint16_t *) _raw_buffer)[1] = htons(length);
+
+    return sizeof(uint16_t);
 }
 
 /**
