@@ -6,6 +6,7 @@ namespace ldpd {
 
 class LdpTlvValue : public Serializable {
 public:
+    virtual ~LdpTlvValue() {};
     virtual uint16_t getType() const = 0;
 };
 

@@ -7,6 +7,7 @@ namespace ldpd {
 
 class Serializable {
 public:
+    virtual ~Serializable() {};
     ssize_t print(uint8_t *to, size_t buf_sz) const;
     ssize_t print(size_t indent, uint8_t *to, size_t buf_sz) const;
 

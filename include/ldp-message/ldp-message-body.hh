@@ -6,6 +6,7 @@ namespace ldpd {
 
 class LdpMessageBody : public Serializable {
 public:
+    virtual ~LdpMessageBody() {};
     virtual uint16_t getType() const = 0;
 };
 
