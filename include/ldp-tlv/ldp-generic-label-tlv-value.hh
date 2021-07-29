@@ -12,7 +12,7 @@ public:
     uint16_t getType() const;
     uint32_t getLabel() const;
     
-    void setLabel(uint32_t label);
+    ssize_t setLabel(uint32_t label);
 
 private:
     uint32_t _label;
