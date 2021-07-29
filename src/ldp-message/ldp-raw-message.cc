@@ -212,6 +212,8 @@ LdpMessageBody* LdpRawMessage::getParsedBody() const {
             return msg;
         }
     }
+
+    return nullptr;
 }
 
 // ----------------------------------------------------------------------------
