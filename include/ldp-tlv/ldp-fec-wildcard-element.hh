@@ -7,6 +7,13 @@ namespace ldpd {
 class LdpFecWildcardElement : public Serializable {
 public:
     uint8_t getType() const;
+    
+// ----------------------------------------------------------------------------
+
+public:
+    ssize_t parse(const uint8_t *from, size_t buf_sz);
+    ssize_t write(uint8_t *to, size_t buf_sz) const;
+    size_t length() const;
 };
 
 }
