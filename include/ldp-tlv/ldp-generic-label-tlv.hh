@@ -1,5 +1,5 @@
-#ifndef LDP_LABEL_TLV_H
-#define LDP_LABEL_TLV_H
+#ifndef LDP_GENERIC_LABEL_TLV_H
+#define LDP_GENERIC_LABEL_TLV_H
 #include "core/serializable.hh"
 #include "ldp-tlv/ldp-tlv-value.hh"
 
@@ -24,4 +24,4 @@ public:
 
 }
 
-#endif // LDP_LABEL_TLV_H
+#endif // LDP_GENERIC_LABEL_TLV_H
