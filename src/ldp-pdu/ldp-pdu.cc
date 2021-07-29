@@ -6,6 +6,17 @@
 
 namespace ldpd {
 
+LdpPdu::LdpPdu() : _tlvs() {
+    _version = 0;
+    _length = 0;
+    _routerId = 0;
+    _labelSpace = 0;
+}
+
+LdpPdu::~LdpPdu() {
+    this->clearTlvs();
+}
+
 /**
  * @brief get version field in the LDP PDU.
  * 
