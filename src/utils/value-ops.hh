@@ -67,7 +67,7 @@ template <typename T> size_t putValue(uint8_t **dst, size_t dst_sz, const T &val
 }
 
 #define PUTVAL_S(buf_ptr, buf_sz_var, src_var_type, src_var, pre_processing) {\
-    ssize_t tmp = putValue<src_var_type>(&buf_ptr, buf_sz_var, pre_processing(src_var))\
+    ssize_t tmp = putValue<src_var_type>(&buf_ptr, buf_sz_var, pre_processing(src_var));\
     if (tmp < 0) { return -1; };\
     buf_sz_var -= tmp;\
 }
