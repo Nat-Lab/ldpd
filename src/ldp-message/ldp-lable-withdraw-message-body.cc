@@ -14,11 +14,11 @@ LdpLabelWithdrawMessageBody::LdpLabelWithdrawMessageBody() {
 
 LdpLabelWithdrawMessageBody::~LdpLabelWithdrawMessageBody() {
     if (_fec != nullptr) {
-        free(_fec);
+        delete _fec;
     }
 
     if (_label != nullptr) {
-        free(_label);
+        delete _label;
     }
 
     if (_tmp_raw_buffer != nullptr) {
@@ -44,7 +44,7 @@ void LdpLabelWithdrawMessageBody::setFecTlv(LdpRawTlv *tlv) {
     }
 
     if (_fec != nullptr) {
-        free(_fec);
+        delete _fec;
     }
 
     _fec = tlv;
@@ -59,7 +59,7 @@ void LdpLabelWithdrawMessageBody::setFecTlv(LdpRawTlv *tlv) {
 void LdpLabelWithdrawMessageBody::setLabelTlv(LdpRawTlv *tlv) {
     if (tlv == nullptr) {
         if (_label != nullptr) {
-            free(_label);
+            delete _label;
         }
 
         _label = nullptr;
@@ -74,7 +74,7 @@ void LdpLabelWithdrawMessageBody::setLabelTlv(LdpRawTlv *tlv) {
     }
 
     if (_label != nullptr) {
-        free(_label);
+        delete _label;
     }
 
     _label = tlv;

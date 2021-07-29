@@ -2,6 +2,8 @@
 #include "utils/value-ops.hh"
 #include "ldp-tlv/ldp-generic-label-tlv-value.hh"
 
+#include <arpa/inet.h>
+
 namespace ldpd {
 
 LdpGenericLabelTlvValue::LdpGenericLabelTlvValue() {
@@ -55,6 +57,7 @@ ssize_t LdpGenericLabelTlvValue::parse(const uint8_t *from, size_t tlv_len) {
     }
 
     GETVAL_S(from, tlv_len, uint32_t, _label, , -1);
+    _label = ntohl(_label & htonl(0x000fffff));
 
     return sizeof(uint32_t);
 }
@@ -72,6 +75,7 @@ ssize_t LdpGenericLabelTlvValue::write(uint8_t *to, size_t buf_sz) const {
         return -1;
     }
 
+    uint32_t lbl = htonl(_label) & htonl(0x000fffff);
     PUTVAL_S(to, buf_sz, uint32_t, _label, , -1);
 
     return sizeof(uint32_t);
