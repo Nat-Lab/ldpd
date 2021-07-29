@@ -25,7 +25,7 @@ public:
     ssize_t setRawBody(size_t size, const uint8_t *src);
     ssize_t setBody(const LdpMessageBody *value);
     
-    LdpMessageBody* getParsedBody();
+    LdpMessageBody* getParsedBody() const;
 
 protected:
     uint8_t *_raw_buffer;

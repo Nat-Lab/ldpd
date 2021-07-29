@@ -187,6 +187,33 @@ ssize_t LdpRawMessage::setBody(const LdpMessageBody *value) {
     return _raw_buffer_size;
 }
 
+/**
+ * @brief get parsed body.
+ * 
+ * @return LdpMessageBody* parsed body - you need to free this.
+ */
+LdpMessageBody* LdpRawMessage::getParsedBody() const {
+    uint16_t type = this->getType();
+    uint16_t len = this->getLength();
+
+    size_t hdr_len = sizeof(type) + sizeof(len) + sizeof(uint32_t);
+    size_t tot_len = hdr_len + len;
+
+    if (tot_len > _raw_buffer_size) {
+        log_fatal("tot_len (%zu) greater then raw buffer size (%zu), bad packet?\n", tot_len, _raw_buffer_size);
+        return nullptr;
+    }
+
+    switch(type) {
+        case 0x0402: {
+            LdpLabelWithdrawMessageBody *msg = new LdpLabelWithdrawMessageBody();
+            msg->parse(_raw_buffer + hdr_len, len - sizeof(uint32_t));
+
+            return msg;
+        }
+    }
+}
+
 // ----------------------------------------------------------------------------
 
 /**
