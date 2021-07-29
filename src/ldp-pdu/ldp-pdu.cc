@@ -154,7 +154,7 @@ ssize_t LdpPdu::parse(const uint8_t *from, size_t msg_sz) {
     size_t tlvs_len = _length - sizeof(_routerId) - sizeof(_labelSpace);
 
     if (tlvs_len > buf_remaining) {
-        log_fatal("tlvs_len (%zu) greater then remaining buffer (%zu), packet truncated?\n", );
+        log_fatal("tlvs_len (%zu) greater then remaining buffer (%zu), packet truncated?\n", tlvs_len, buf_remaining);
         return -1;
     }
 
