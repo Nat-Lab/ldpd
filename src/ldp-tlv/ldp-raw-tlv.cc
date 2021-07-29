@@ -1,3 +1,5 @@
+#include "utils/log.hh"
+#include "utils/value-ops.hh"
 #include "ldp-tlv/ldp-tlv.hh"
 
 #include <stdlib.h>
@@ -69,21 +71,16 @@ uint16_t LdpRawTlv::getLength() const {
 }
 
 /**
- * @brief get raw value buffer.
+ * @brief get current raw value buffer pointer.
  * 
- * @return const uint8_t* value buffer. can be nullptr if not set.
+ * note: this can return nullptr if not set.
+ * 
+ * note: pointer may not be valid anymore if any changes is made to the object.
+ * 
+ * @return const uint8_t* value buffer. 
  */
-const uint8_t* LdpRawTlv::getRawValue() const {
+const uint8_t* LdpRawTlv::peekRawValue() const {
     return _raw_buffer;
-}
-
-/**
- * @brief get raw value buffer size.
- * 
- * @return size_t buffer size.
- */
-size_t LdpRawTlv::getRawValueSize() const {
-    return _raw_buffer_size;
 }
 
 /**
@@ -115,19 +112,102 @@ ssize_t LdpRawTlv::setType(uint16_t length) {
 /**
  * @brief set the raw value buffer.
  * 
- * note: this frees the internal buffer first. If you try to setRawValue with a
- * previously returned raw buffer from the same tlv, you will have problem.
+ * note: this uses memcpy. if you try to setRawValue with a previously returned
+ * raw buffer from the same tlv, you may have problem (memcpy w/ overlapping
+ * buffer).
+ * 
+ * note: this automatically extend/allocates internal buffer. old pointers
+ * got from getRawValue may no longer valid.
+ * 
+ * note: this sets only the value part of the tlv. it also updates the length
+ * field in the tlv.
  * 
  * @param size source buffer size.
  * @param src source buffer.
  */
 void LdpRawTlv::setRawValue(size_t size, const uint8_t *src) {
+    size_t tlv_hdr_sz = 2 * sizeof(uint16_t);
+
+    _raw_buffer_size = tlv_hdr_sz + size;
+
+    if (_raw_buffer == nullptr) {
+        _raw_buffer = (uint8_t *) malloc(_raw_buffer_size);
+    }
+
+    if (_raw_buffer != nullptr) {
+        _raw_buffer = (uint8_t *) realloc(_raw_buffer, _raw_buffer_size);
+    }
+
+    memcpy(_raw_buffer + tlv_hdr_sz, src, size);
+    this->setLength(size);
+}
+
+// ----------------------------------------------------------------------------
+
+/**
+ * @brief "parse" a tlv into raw, un-parsed buffer.
+ * 
+ * note: this only read the length field and read that many bytes plus the
+ * header size into a buffer. it does not do additional parsing. use
+ * getParsedValue to parse the value.
+ * 
+ * @param from source buffer.
+ * @param sz source buffer size.
+ * @return ssize_t bytes read, or -1 on error.
+ */
+ssize_t LdpRawTlv::parse(const uint8_t *from, size_t sz) {
+    const uint8_t *buffer = from;
+    size_t buf_remaining = sz;
+
+    uint16_t type, tlv_len;
+
+    GETVAL_S(buffer, buf_remaining, uint16_t, type, ntohs);
+    GETVAL_S(buffer, buf_remaining, uint16_t, tlv_len, ntohs);
+
+    if (tlv_len > buf_remaining) {
+        log_fatal("tlv_len (%zu) greater then remaining buffer (%zu), packet truncated?\n", tlv_len, buf_remaining);
+        return -1;
+    }
+
+    size_t tot_tlv_len = tlv_len + sizeof(type) + sizeof(tlv_len);
+
     if (_raw_buffer != nullptr) {
         free(_raw_buffer);
     }
 
-    _raw_buffer = (uint8_t *) malloc(size);
-    memcpy(_raw_buffer, src, size);
+    _raw_buffer = (uint8_t *) malloc(tot_tlv_len);
+
+    memcpy(_raw_buffer, from, tot_tlv_len);
+    _raw_buffer_size = tot_tlv_len;
+    
+    return tot_tlv_len;
+}
+
+/**
+ * @brief write tlv into buffer.
+ * 
+ * @param to dst buffer.
+ * @param buf_sz dst buffer size.
+ * @return ssize_t bytes written, or -1 on error.
+ */
+ssize_t LdpRawTlv::write(uint8_t *to, size_t buf_sz) const {
+    if (buf_sz < _raw_buffer_size) {
+        log_fatal("buf_sz (%zu) too small - can not fit tlv (size is %zu)\n", buf_sz, _raw_buffer_size);
+        return -1;
+    }
+
+    memcpy(to, _raw_buffer, _raw_buffer_size);
+
+    return _raw_buffer_size;
+}
+
+/**
+ * @brief get raw value buffer size.
+ * 
+ * @return size_t buffer size.
+ */
+ssize_t LdpRawTlv::length() const {
+    return _raw_buffer_size;
 }
 
 }

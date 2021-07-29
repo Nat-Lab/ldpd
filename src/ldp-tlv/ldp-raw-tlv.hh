@@ -16,8 +16,7 @@ public:
     uint16_t getType() const;
     uint16_t getLength() const;
 
-    const uint8_t* getRawValue() const;
-    size_t getRawValueSize() const;
+    const uint8_t* peekRawValue() const;
 
     ssize_t setType(uint16_t type);
     ssize_t setLength(uint16_t length);
