@@ -196,7 +196,7 @@ LdpMessageBody* LdpRawMessage::getParsedBody() const {
     uint16_t type = this->getType();
     uint16_t len = this->getLength();
 
-    size_t hdr_len = sizeof(type) + sizeof(len) + sizeof(uint32_t);
+    size_t hdr_len = sizeof(type) + sizeof(len);
     size_t tot_len = hdr_len + len;
 
     if (tot_len > _raw_buffer_size) {
@@ -207,7 +207,7 @@ LdpMessageBody* LdpRawMessage::getParsedBody() const {
     switch(type) {
         case 0x0402: {
             LdpLabelWithdrawMessageBody *msg = new LdpLabelWithdrawMessageBody();
-            msg->parse(_raw_buffer + hdr_len, len - sizeof(uint32_t));
+            msg->parse(_raw_buffer + hdr_len + sizeof(uint32_t), len - sizeof(uint32_t));
 
             return msg;
         }
