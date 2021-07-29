@@ -1,14 +1,12 @@
 #ifndef VALUE_OP_H
 #define VALUE_OP_H
-#include "log.hh"
+#include "utils/log.hh"
 
 #include <stdint.h>
 #include <unistd.h>
 #include <string.h>
 
 namespace ldpd {
-
-
 
 /**
  * @brief read value from buffer.

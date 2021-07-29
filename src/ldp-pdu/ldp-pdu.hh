@@ -2,8 +2,8 @@
 #define LDP_PDU_H
 #include <vector>
 
-#include "serializable.hh"
-#include "ldp-tlv.hh"
+#include "core/serializable.hh"
+#include "ldp-tlv/ldp-tlv.hh"
 
 namespace ldpd {
 

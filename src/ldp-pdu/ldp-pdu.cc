@@ -1,6 +1,6 @@
-#include "value-ops.hh"
-#include "ldp-pdu.hh"
-#include "log.hh"
+#include "utils/value-ops.hh"
+#include "ldp-pdu/ldp-pdu.hh"
+#include "utils/log.hh"
 
 #include <arpa/inet.h>
 
