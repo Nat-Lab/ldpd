@@ -8,13 +8,11 @@ namespace ldpd {
 class LdpGenericLabelTlvValue : public LdpTlvValue {
 public:
     LdpGenericLabelTlvValue();
-    
+
     uint16_t getType() const;
     uint32_t getLabel() const;
     
     void setLabel(uint32_t label);
-
-    const uint8_t* getRaw() const;
 
 private:
     uint32_t _label;

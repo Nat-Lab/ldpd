@@ -37,15 +37,6 @@ void LdpGenericLabelTlvValue::setLabel(uint32_t label) {
 }
 
 /**
- * @brief get raw value buffer.
- * 
- * @return const uint8_t* raw value buffer.
- */
-const uint8_t* LdpGenericLabelTlvValue::getRaw() const {
-    return (uint8_t *) &_label;
-}
-
-/**
  * @brief parse tlv value.
  * 
  * @param from source buffer.
@@ -59,7 +50,7 @@ ssize_t LdpGenericLabelTlvValue::parse(const uint8_t *from, size_t tlv_len) {
         return -1;
     }
 
-    GETVAL_S(from, tlv_len, uint32_t, _label, );
+    GETVAL_S(from, tlv_len, uint32_t, _label, , -1);
 
     return sizeof(uint32_t);
 }
@@ -77,7 +68,7 @@ ssize_t LdpGenericLabelTlvValue::write(uint8_t *to, size_t buf_sz) const {
         return -1;
     }
 
-    PUTVAL_S(to, buf_sz, uint32_t, _label, );
+    PUTVAL_S(to, buf_sz, uint32_t, _label, , -1);
 
     return sizeof(uint32_t);
 }

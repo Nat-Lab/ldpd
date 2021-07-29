@@ -8,6 +8,8 @@ namespace ldpd {
 
 class LdpLableWithdrawMessageBody : public LdpMessageBody {
 public:
+    LdpLableWithdrawMessageBody();
+    ~LdpLableWithdrawMessageBody();
     uint16_t getType() const;
 
     void addFecTlv(LdpRawTlv *tlv);
@@ -19,11 +21,12 @@ public:
     const std::vector<LdpRawTlv *> getFecTlvs() const;
     const std::vector<LdpRawTlv *> getLabelTlvs() const;
 
-    const uint8_t* getRaw() const;
-
 private:
     std::vector<LdpRawTlv *> _fecs;
     std::vector<LdpRawTlv *> _labels;
+
+    uint8_t *_tmp_raw_buffer;
+    size_t _tmp_raw_buffer_sz;
 
 // ----------------------------------------------------------------------------
 
