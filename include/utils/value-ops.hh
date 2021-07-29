@@ -54,16 +54,16 @@ template <typename T> size_t putValue(uint8_t *dst, size_t dst_sz, const T &valu
     return sz;
 }
 
-#define GETVAL_S(buf_ptr, buf_sz_var, dst_var_type, dst_var, post_processing) {\
+#define GETVAL_S(buf_ptr, buf_sz_var, dst_var_type, dst_var, post_processing, err_ret) {\
     ssize_t tmp = getValue<dst_var_type>(buf_ptr, buf_sz_var, dst_var);\
     dst_var = post_processing(dst_var);\
-    if (tmp < 0) { return -1; };\
+    if (tmp < 0) { return err_ret; };\
     buf_sz_var -= tmp; buf_ptr += tmp;\
 }
 
-#define PUTVAL_S(buf_ptr, buf_sz_var, src_var_type, src_var, pre_processing) {\
+#define PUTVAL_S(buf_ptr, buf_sz_var, src_var_type, src_var, pre_processing, err_ret) {\
     ssize_t tmp = putValue<src_var_type>(buf_ptr, buf_sz_var, pre_processing(src_var));\
-    if (tmp < 0) { return -1; };\
+    if (tmp < 0) { return err_ret; };\
     buf_sz_var -= tmp; buf_ptr += tmp;\
 }
 
