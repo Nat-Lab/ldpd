@@ -15,12 +15,15 @@ public:
 
     uint16_t getType() const;
     uint16_t getLength() const;
+
     const uint8_t* getRawValue() const;
+    size_t getRawValueSize() const;
 
-    void setType(uint16_t type);
-    void setLength(uint16_t length);
-    void setRawValue(size_t sz, const uint8_t *buffer);
+    ssize_t setType(uint16_t type);
+    ssize_t setLength(uint16_t length);
 
+    void setRawValue(size_t rawValueSize, const uint8_t *src);
+    
     LdpTlvValue* getParsedValue();
 
 protected:
@@ -33,9 +36,6 @@ public:
     ssize_t parse(const uint8_t *from, size_t msg_sz);
     ssize_t write(uint8_t *to, size_t buf_sz) const;
     ssize_t length() const;
-
-protected:
-    ssize_t doPrint(size_t indent, uint8_t *to, size_t buf_sz) const;
 };
 
 }
