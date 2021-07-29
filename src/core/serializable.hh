@@ -13,9 +13,6 @@ public:
     virtual ssize_t parse(const uint8_t *from, size_t msg_sz) = 0;
     virtual ssize_t write(uint8_t *to, size_t buf_sz) const = 0;
     virtual ssize_t length() const = 0;
-
-protected:
-    virtual ssize_t doPrint(size_t indent, uint8_t *to, size_t buf_sz) const = 0;
 };
 
 }

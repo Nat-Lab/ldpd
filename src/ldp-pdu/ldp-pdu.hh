@@ -42,10 +42,6 @@ public:
     ssize_t parse(const uint8_t *from, size_t msg_sz);
     ssize_t write(uint8_t *to, size_t buf_sz) const;
     ssize_t length() const;
-
-protected:
-    ssize_t doPrint(size_t indent, uint8_t *to, size_t buf_sz) const;
-
 };
 
 }
