@@ -24,7 +24,7 @@ public:
     void setRawValue(size_t rawValueSize, const uint8_t *src);
     void setValue(const LdpTlvValue *value);
     
-    LdpTlvValue* getParsedValue();
+    LdpTlvValue* getParsedValue() const;
 
 protected:
     uint8_t *_raw_buffer;

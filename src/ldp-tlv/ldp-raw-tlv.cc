@@ -146,6 +146,45 @@ void LdpRawTlv::setRawValue(size_t size, const uint8_t *src) {
     this->setLength(size);
 }
 
+/**
+ * @brief set value to the given value object.
+ * 
+ * @param value value object.
+ */
+void LdpRawTlv::setValue(const LdpTlvValue *value) {
+    this->setRawValue(value->length(), value->getRaw());
+}
+
+/**
+ * @brief get a parsed value object.
+ * 
+ * @return LdpTlvValue* parsed value. you must free this yourself after use.
+ * return null if can't be parsed.
+ */
+LdpTlvValue* LdpRawTlv::getParsedValue() const {
+    uint16_t type = this->getType();
+    uint16_t len = this->getLength();
+
+    size_t hdr_len = sizeof(type) + sizeof(len);
+    size_t tot_len = hdr_len + len;
+
+    if (tot_len > _raw_buffer_size) {
+        log_fatal("tot_len (%zu) greater then raw buffer size (%zu), bad packet?\n", tot_len, _raw_buffer_size);
+        return nullptr;
+    }
+
+    switch(type) {
+        case 0x0200: {
+            LdpGenericLabelTlvValue *val = new LdpGenericLabelTlvValue();
+            val->parse(_raw_buffer + hdr_len, len);
+
+            return val;
+        }
+    }
+
+    return nullptr;
+}
+
 // ----------------------------------------------------------------------------
 
 /**

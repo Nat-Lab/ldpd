@@ -5,12 +5,16 @@
 
 namespace ldpd {
 
-class LdpGenericLabelTlv : public LdpTlvValue {
+class LdpGenericLabelTlvValue : public LdpTlvValue {
 public:
-    LdpGenericLabelTlv();
+    LdpGenericLabelTlvValue();
+    
     uint16_t getType() const;
     uint32_t getLabel() const;
+    
     void setLabel(uint32_t label);
+
+    const uint8_t* getRaw() const;
 
 private:
     uint32_t _label;
@@ -18,7 +22,7 @@ private:
 // ----------------------------------------------------------------------------
 
 public:
-    ssize_t parse(const uint8_t *from, size_t buf_sz);
+    ssize_t parse(const uint8_t *from, size_t tlv_sz);
     ssize_t write(uint8_t *to, size_t buf_sz) const;
     size_t length() const;
 };
