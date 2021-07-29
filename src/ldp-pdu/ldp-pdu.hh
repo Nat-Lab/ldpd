@@ -17,6 +17,7 @@ public:
     uint32_t getRouterId() const;
     uint16_t getLabelSpace() const;
 
+
     void setVersion(uint16_t version);
     void setLength(uint16_t version);
     void setRouterId(uint32_t version);
@@ -24,6 +25,9 @@ public:
 
     void addTlv(LdpRawTlv *tlv);
     void clearTlvs();
+
+    const char* getRouterIdString() const;
+    void setRouterIdString(const char* id);
 
     const std::vector<LdpRawTlv *> getTlvs() const;
 

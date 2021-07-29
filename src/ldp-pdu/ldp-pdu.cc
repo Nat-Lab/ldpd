@@ -3,6 +3,8 @@
 #include "utils/log.hh"
 
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 namespace ldpd {
 
@@ -114,6 +116,26 @@ void LdpPdu::clearTlvs() {
 }
 
 /**
+ * @brief get router id as IPv4 numbers-and-dots notation string.
+ * 
+ * note: uses inet_ntoa. not thread safe.
+ * 
+ * @return const char* router id in IPv4 numbers-and-dots notation string.
+ */
+const char* LdpPdu::getRouterIdString() const {
+    return inet_ntoa(*((in_addr *) &_routerId));
+}
+
+/**
+ * @brief set router id with IPv4 numbers-and-dots notation string.
+ * 
+ * @param id router id in IPv4 numbers-and-dots notation string.
+ */
+void LdpPdu::setRouterIdString(const char* id) {
+    inet_pton(AF_INET, id, &_routerId);
+}
+
+/**
  * @brief get the list of tlvs.
  * 
  * @return const std::vector<LdpTlv * list of tlvs.
@@ -175,9 +197,11 @@ ssize_t LdpPdu::parse(const uint8_t *from, size_t msg_sz) {
         ssize_t res = tlv->parse(ptr, tlvs_len);
 
         if (res < 0) {
+            delete tlv;
             return -1;
         }
 
+        this->addTlv(tlv);
         ptr += res;
         tlvs_len -= res;
     }
