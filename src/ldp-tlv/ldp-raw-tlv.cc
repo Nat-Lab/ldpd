@@ -147,12 +147,31 @@ void LdpRawTlv::setRawValue(size_t size, const uint8_t *src) {
 }
 
 /**
- * @brief set value to the given value object.
+ * @brief set value to the given value object. also updates len and type field.
  * 
  * @param value value object.
  */
 void LdpRawTlv::setValue(const LdpTlvValue *value) {
-    this->setRawValue(value->length(), value->getRaw());
+    if (_raw_buffer != nullptr) {
+        free(_raw_buffer);
+    }
+
+    uint16_t val_sz = value->length();
+    uint16_t val_type = value->getType();
+
+    size_t tlv_hdr_sz = sizeof(val_sz) + sizeof(val_type);
+
+    _raw_buffer_size = tlv_hdr_sz + value->length();
+
+    _raw_buffer = (uint8_t *) malloc(_raw_buffer_size);
+
+    uint8_t *ptr = _raw_buffer;
+    size_t buf_remaining = _raw_buffer_size;
+
+    PUTVAL_S(ptr, buf_remaining, uint16_t, val_type, htons, );
+    PUTVAL_S(ptr, buf_remaining, uint16_t, val_sz, htons, );
+
+    value->write(ptr, buf_remaining);
 }
 
 /**
@@ -204,8 +223,8 @@ ssize_t LdpRawTlv::parse(const uint8_t *from, size_t sz) {
 
     uint16_t type, tlv_len;
 
-    GETVAL_S(buffer, buf_remaining, uint16_t, type, ntohs);
-    GETVAL_S(buffer, buf_remaining, uint16_t, tlv_len, ntohs);
+    GETVAL_S(buffer, buf_remaining, uint16_t, type, ntohs, -1);
+    GETVAL_S(buffer, buf_remaining, uint16_t, tlv_len, ntohs, -1);
 
     if (tlv_len > buf_remaining) {
         log_fatal("tlv_len (%zu) greater then remaining buffer (%zu), packet truncated?\n", tlv_len, buf_remaining);
