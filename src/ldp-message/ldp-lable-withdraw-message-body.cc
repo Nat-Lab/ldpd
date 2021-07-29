@@ -8,8 +8,6 @@ namespace ldpd {
 LdpLabelWithdrawMessageBody::LdpLabelWithdrawMessageBody() {
     _fec = nullptr;
     _label = nullptr;
-    _tmp_raw_buffer = nullptr;
-    _tmp_raw_buffer_sz = 0;
 }
 
 LdpLabelWithdrawMessageBody::~LdpLabelWithdrawMessageBody() {
@@ -19,10 +17,6 @@ LdpLabelWithdrawMessageBody::~LdpLabelWithdrawMessageBody() {
 
     if (_label != nullptr) {
         delete _label;
-    }
-
-    if (_tmp_raw_buffer != nullptr) {
-        free(_tmp_raw_buffer);
     }
 }
 

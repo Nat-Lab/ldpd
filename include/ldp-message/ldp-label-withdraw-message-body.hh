@@ -22,9 +22,6 @@ private:
     LdpRawTlv *_fec;
     LdpRawTlv *_label;
 
-    uint8_t *_tmp_raw_buffer;
-    size_t _tmp_raw_buffer_sz;
-
 // ----------------------------------------------------------------------------
 
 public:
