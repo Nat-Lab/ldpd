@@ -1,30 +1,29 @@
-#ifndef LDP_RAW_TLV_H
-#define LDP_RAW_TLV_H
+#ifndef LDP_RAW_MESSAGE_H
+#define LDP_RAW_MESSAGE_H
 #include "core/serializable.hh"
-#include "ldp-tlv/ldp-tlv-value.hh"
+#include "ldp-message/ldp-message-body.hh"
 
 namespace ldpd {
 
-class LdpRawTlv : public Serializable {
+class LdpRawMessage : public Serializable {
 public:
-    LdpRawTlv();
-    ~LdpRawTlv();
+    LdpRawMessage();
+    ~LdpRawMessage();
 
     bool unknown() const;
-    bool forwardUnknown() const;
 
     uint16_t getType() const;
     uint16_t getLength() const;
 
-    const uint8_t* peekRawValue() const;
+    const uint8_t* peekRawBody() const;
 
     ssize_t setType(uint16_t type);
     ssize_t setLength(uint16_t length);
 
-    void setRawValue(size_t rawValueSize, const uint8_t *src);
-    void setValue(const LdpTlvValue *value);
+    void setRawBody(size_t size, const uint8_t *src);
+    void setBody(const LdpMessageBody *value);
     
-    LdpTlvValue* getParsedValue();
+    LdpMessageBody* getParsedBody();
 
 protected:
     uint8_t *_raw_buffer;
@@ -40,4 +39,4 @@ public:
 
 }
 
-#endif // LDP_RAW_TLV_H
+#endif // LDP_RAW_MESSAGE_H

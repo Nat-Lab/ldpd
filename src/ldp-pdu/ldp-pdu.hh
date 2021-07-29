@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "core/serializable.hh"
-#include "ldp-tlv/ldp-tlv.hh"
+#include "ldp-message/ldp-message.hh"
 
 namespace ldpd {
 
@@ -17,19 +17,18 @@ public:
     uint32_t getRouterId() const;
     uint16_t getLabelSpace() const;
 
-
     void setVersion(uint16_t version);
     void setLength(uint16_t version);
     void setRouterId(uint32_t version);
     void setLableSpace(uint16_t version);
 
-    void addTlv(LdpRawTlv *tlv);
-    void clearTlvs();
+    void addMessage(LdpRawMessage *message);
+    void clearMessages();
 
     const char* getRouterIdString() const;
     void setRouterIdString(const char* id);
 
-    const std::vector<LdpRawTlv *> getTlvs() const;
+    const std::vector<LdpRawMessage *> getMessages() const;
 
     uint16_t recalculateLength();
 
@@ -38,7 +37,7 @@ private:
     uint16_t _length;
     uint32_t _routerId;
     uint16_t _labelSpace;
-    std::vector<LdpRawTlv *> _tlvs;
+    std::vector<LdpRawMessage *> _messages;
 
 // ----------------------------------------------------------------------------
 

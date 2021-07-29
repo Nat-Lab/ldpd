@@ -8,7 +8,7 @@
 
 namespace ldpd {
 
-LdpPdu::LdpPdu() : _tlvs() {
+LdpPdu::LdpPdu() : _messages() {
     _version = 0;
     _length = 0;
     _routerId = 0;
@@ -16,7 +16,7 @@ LdpPdu::LdpPdu() : _tlvs() {
 }
 
 LdpPdu::~LdpPdu() {
-    this->clearTlvs();
+    this->clearMessages();
 }
 
 /**
@@ -92,27 +92,27 @@ void LdpPdu::setLableSpace(uint16_t lableSpace) {
 }
 
 /**
- * @brief add tlv to this pdu.
+ * @brief add a message to this pdu.
  * 
- * note: LdpPdu class handles freeing of the LdpTlv objects. DO NOT free it your
- * self after adding tlvs to pdu. DO NOT pass local variable pointer.
+ * note: LdpPdu class handles freeing of the LdpMessage objects. DO NOT free it
+ * yourself after adding message to pdu. DO NOT pass local variable pointer.
  * 
- * @param tlv 
+ * @param message message 
  */
-void LdpPdu::addTlv(LdpRawTlv *tlv) {
-    _tlvs.push_back(tlv);
+void LdpPdu::addMessage(LdpRawMessage *message) {
+    _messages.push_back(message);
 }
 
 /**
- * @brief remove all tlvs from this pdu.
+ * @brief remove all messages from this pdu.
  * 
  */
-void LdpPdu::clearTlvs() {
-    for (LdpRawTlv *tlv : _tlvs) {
-        delete tlv;
+void LdpPdu::clearMessages() {
+    for (LdpRawMessage *msg : _messages) {
+        delete msg;
     }
 
-    _tlvs.clear();
+    _messages.clear();
 }
 
 /**
@@ -136,12 +136,12 @@ void LdpPdu::setRouterIdString(const char* id) {
 }
 
 /**
- * @brief get the list of tlvs.
+ * @brief get the list of messages.
  * 
- * @return const std::vector<LdpTlv * list of tlvs.
+ * @return const std::vector<LdpRawMessage * list of messages.
  */
-const std::vector<LdpRawTlv *> LdpPdu::getTlvs() const {
-    return _tlvs;
+const std::vector<LdpRawMessage *> LdpPdu::getMessages() const {
+    return _messages;
 }
 
 /**
@@ -154,8 +154,8 @@ const std::vector<LdpRawTlv *> LdpPdu::getTlvs() const {
 uint16_t LdpPdu::recalculateLength() {
     _length = 0;
 
-    for (const LdpRawTlv *tlv : _tlvs) {
-        _length += tlv->length();
+    for (const LdpRawMessage *msg : _messages) {
+        _length += msg->length();
     }
 
     _length += sizeof(_routerId) + sizeof(_labelSpace);
@@ -184,26 +184,26 @@ ssize_t LdpPdu::parse(const uint8_t *from, size_t msg_sz) {
     GETVAL_S(ptr, buf_remaining, uint32_t, _routerId, );
     GETVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, ntohs);
 
-    size_t tlvs_len = _length - sizeof(_routerId) - sizeof(_labelSpace);
+    size_t msgs_len = _length - sizeof(_routerId) - sizeof(_labelSpace);
 
-    if (tlvs_len > buf_remaining) {
-        log_fatal("tlvs_len (%zu) greater then remaining buffer (%zu), packet truncated?\n", tlvs_len, buf_remaining);
+    if (msgs_len > buf_remaining) {
+        log_fatal("msgs_len (%zu) greater then remaining buffer (%zu), packet truncated?\n", msgs_len, buf_remaining);
         return -1;
     }
 
-    while (tlvs_len > 0) {
-        LdpRawTlv *tlv = new LdpRawTlv();
+    while (msgs_len > 0) {
+        LdpRawMessage *msg = new LdpRawMessage();
 
-        ssize_t res = tlv->parse(ptr, tlvs_len);
+        ssize_t res = msg->parse(ptr, msgs_len);
 
         if (res < 0) {
-            delete tlv;
+            delete msg;
             return -1;
         }
 
-        this->addTlv(tlv);
+        this->addMessage(msg);
         ptr += res;
-        tlvs_len -= res;
+        msgs_len -= res;
     }
 
     return ptr - from;
@@ -232,8 +232,8 @@ ssize_t LdpPdu::write(uint8_t *to, size_t buf_sz) const {
     PUTVAL_S(ptr, buf_remaining, uint32_t, _routerId, );
     PUTVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, htons);
 
-    for (const LdpRawTlv *tlv : _tlvs) {
-        ssize_t ret = tlv->write(ptr, buf_remaining);
+    for (const LdpRawMessage *msg : _messages) {
+        ssize_t ret = msg->write(ptr, buf_remaining);
 
         if (ret < 0) {
             return -1;
@@ -254,8 +254,8 @@ ssize_t LdpPdu::write(uint8_t *to, size_t buf_sz) const {
 size_t LdpPdu::length() const {
     size_t len = sizeof(_version) + sizeof(_length) + sizeof(_routerId) + sizeof(_labelSpace);
 
-    for (const LdpRawTlv *tlv : _tlvs) {
-        len += tlv->length();
+    for (const LdpRawMessage *msg : _messages) {
+        len += msg->length();
     }
 
     return len;
