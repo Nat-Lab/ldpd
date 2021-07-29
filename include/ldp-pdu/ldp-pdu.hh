@@ -17,16 +17,16 @@ public:
     uint32_t getRouterId() const;
     uint16_t getLabelSpace() const;
 
-    void setVersion(uint16_t version);
-    void setLength(uint16_t version);
-    void setRouterId(uint32_t version);
-    void setLableSpace(uint16_t version);
+    ssize_t setVersion(uint16_t version);
+    ssize_t setLength(uint16_t version);
+    ssize_t setRouterId(uint32_t version);
+    ssize_t setLableSpace(uint16_t version);
 
-    void addMessage(LdpRawMessage *message);
+    ssize_t addMessage(LdpRawMessage *message);
     void clearMessages();
 
     const char* getRouterIdString() const;
-    void setRouterIdString(const char* id);
+    ssize_t setRouterIdString(const char* id);
 
     const std::vector<LdpRawMessage *> getMessages() const;
 
