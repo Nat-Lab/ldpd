@@ -206,6 +206,10 @@ LdpTlvValue* LdpRawTlv::getParsedValue() const {
             val = new LdpFecTlvValue();
             break;
         }
+        case 0x0101: {
+            val = new LdpAddressTlvValue();
+            break;
+        }
         case 0x0200: {
             val = new LdpGenericLabelTlvValue();
             break;
