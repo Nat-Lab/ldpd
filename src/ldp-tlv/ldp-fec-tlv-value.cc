@@ -58,6 +58,7 @@ ssize_t LdpFecTlvValue::parse(const uint8_t *from, size_t tlv_len) {
             }
             case 0x02: {
                 el = (LdpFecElement *) new LdpFecPrefixElement();
+                break;
             }
             default:
                 log_fatal("unknow fec element type (0x%.2x)\n", type);
