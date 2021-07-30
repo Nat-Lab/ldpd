@@ -225,6 +225,9 @@ LdpMessageBody* LdpRawMessage::getParsedBody() const {
             body = new LdpLabelWithdrawMessageBody();
             break;
         }
+        default:
+            log_fatal("unknow tlv type (0x%.4x)\n", type);
+            return nullptr;
     }
 
     if (body == nullptr) {
