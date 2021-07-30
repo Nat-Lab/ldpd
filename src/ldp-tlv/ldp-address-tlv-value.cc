@@ -1,5 +1,6 @@
 #include "utils/log.hh"
 #include "utils/value-ops.hh"
+#include "ldp-tlv/ldp-tlv-types.hh"
 #include "ldp-tlv/ldp-address-tlv-value.hh"
 
 #include <arpa/inet.h>
@@ -15,7 +16,7 @@ LdpAddressTlvValue::~LdpAddressTlvValue() {
 }
 
 uint16_t LdpAddressTlvValue::getType() const {
-    return 0x0101;
+    return LDP_TLVTYPE_ADDRESS_LIST;
 }
 
 const std::vector<uint32_t> LdpAddressTlvValue::getAddresses() const {

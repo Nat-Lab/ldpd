@@ -1,5 +1,6 @@
 #include "utils/log.hh"
 #include "utils/value-ops.hh"
+#include "ldp-tlv/ldp-tlv-types.hh"
 #include "ldp-tlv/ldp-fec-prefix-element.hh"
 #include "ldp-tlv/ldp-fec-wildcard-element.hh"
 #include "ldp-tlv/ldp-fec-tlv-value.hh"
@@ -15,7 +16,7 @@ LdpFecTlvValue::~LdpFecTlvValue() {
 }
 
 uint16_t LdpFecTlvValue::getType() const {
-    return 0x0100;
+    return LDP_TLVTYPE_FEC;
 }
 
 const std::vector<LdpFecElement *> LdpFecTlvValue::getElements() const {

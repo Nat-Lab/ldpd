@@ -1,5 +1,6 @@
 #include "utils/log.hh"
 #include "utils/value-ops.hh"
+#include "ldp-tlv/ldp-tlv-types.hh"
 #include "ldp-tlv/ldp-generic-label-tlv-value.hh"
 
 #include <arpa/inet.h>
@@ -16,7 +17,7 @@ LdpGenericLabelTlvValue::LdpGenericLabelTlvValue() {
  * @return uint16_t type - always 0x0200.
  */
 uint16_t LdpGenericLabelTlvValue::getType() const {
-    return 0x0200;
+    return LDP_TLVTYPE_GENERIC_LABEL;
 }
 
 /**
