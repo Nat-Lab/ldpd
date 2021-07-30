@@ -200,16 +200,32 @@ LdpTlvValue* LdpRawTlv::getParsedValue() const {
         return nullptr;
     }
 
-    switch(type) {
-        case 0x0200: {
-            LdpGenericLabelTlvValue *val = new LdpGenericLabelTlvValue();
-            val->parse(_raw_buffer + hdr_len, len);
+    LdpTlvValue *val = nullptr;
 
-            return val;
+    switch(type) {
+        case 0x0100: {
+            val = new LdpFecTlvValue();
+            break;
         }
+        case 0x0200: {
+            val = new LdpGenericLabelTlvValue();
+            break;
+        }
+        default:
+            log_fatal("unknow tlv type (0x%.4x)\n", type);
+            return nullptr;
     }
 
-    return nullptr;
+    if (val == nullptr) {
+        log_fatal("no val parser selected? type is 0x%.4x\n", type);
+        return nullptr;
+    }
+
+    uint8_t *ptr = _raw_buffer + hdr_len;
+
+    PARSE_S(ptr, len, val, nullptr);
+
+    return val;
 }
 
 // ----------------------------------------------------------------------------
