@@ -214,14 +214,27 @@ LdpMessageBody* LdpRawMessage::getParsedBody() const {
         return nullptr;
     }
 
-    switch(type) {
-        case 0x0402: {
-            LdpLabelWithdrawMessageBody *msg = new LdpLabelWithdrawMessageBody();
-            msg->parse(_raw_buffer + hdr_len + sizeof(uint32_t), len - sizeof(uint32_t));
+    LdpMessageBody *body = nullptr;
 
-            return msg;
+    switch(type) {
+        case 0x0400: {
+            body = new LdpLabelMappingMessageBody();
+            break;
+        }
+        case 0x0402: {
+            body = new LdpLabelWithdrawMessageBody();
+            break;
         }
     }
+
+    if (body == nullptr) {
+        log_fatal("no body parser selected? type is 0x%.4x\n", type);
+        return nullptr;
+    }
+
+    uint8_t *ptr = _raw_buffer + hdr_len + sizeof(uint32_t);
+
+    PARSE_S(ptr, len, body, nullptr, true);
 
     return nullptr;
 }

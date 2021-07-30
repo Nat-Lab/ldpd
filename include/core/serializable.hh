@@ -9,9 +9,9 @@
     dst_buf += ret; dst_buf_sz_var -= ret;\
 }
 
-#define PARSE_S(src_buf, src_buf_sz_var, dst_obj, err_ret) {\
+#define PARSE_S(src_buf, src_buf_sz_var, dst_obj, err_ret, free_on_err) {\
     ssize_t ret = dst_obj->parse(src_buf, src_buf_sz_var);\
-    if (ret < 0) { return err_ret; }\
+    if (ret < 0) { if (free_on_err) { delete dst_obj; }; return err_ret; }\
     src_buf += ret; src_buf_sz_var -= ret;\
 }
 

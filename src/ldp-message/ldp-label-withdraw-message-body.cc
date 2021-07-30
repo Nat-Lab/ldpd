@@ -105,30 +105,15 @@ ssize_t LdpLabelWithdrawMessageBody::parse(const uint8_t *from, size_t msg_sz) {
 
     LdpRawTlv *fec = new LdpRawTlv();
 
-    ssize_t ret = fec->parse(ptr, buf_remaining);
-
-    if (ret < 0) {
-        delete fec;
-        return -1;
-    }
-
-    buf_remaining -= ret;
-    ptr += ret;
+    PARSE_S(ptr, buf_remaining, fec, -1, true);
 
     this->setFecTlv(fec);
 
     LdpRawTlv *lbl = new LdpRawTlv();
-    ret = lbl->parse(ptr, buf_remaining);
 
-    if (ret < 0) {
-        delete lbl;
-        return -1;
-    }
+    PARSE_S(ptr, buf_remaining, lbl, -1, true);
 
     this->setLabelTlv(lbl);
-
-    buf_remaining -= ret;
-    ptr += ret;
 
     if (buf_remaining != 0) {
         log_fatal("reached the end but buf not end (%zu over).\n", buf_remaining);

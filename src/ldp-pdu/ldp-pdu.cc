@@ -222,16 +222,9 @@ ssize_t LdpPdu::parse(const uint8_t *from, size_t msg_sz) {
     while (msgs_len > 0) {
         LdpRawMessage *msg = new LdpRawMessage();
 
-        ssize_t res = msg->parse(ptr, msgs_len);
-
-        if (res < 0) {
-            delete msg;
-            return -1;
-        }
+        PARSE_S(ptr, msgs_len, msg, -1, true);
 
         this->addMessage(msg);
-        ptr += res;
-        msgs_len -= res;
     }
 
     return ptr - from;

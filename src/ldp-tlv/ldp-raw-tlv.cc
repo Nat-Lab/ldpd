@@ -222,7 +222,7 @@ LdpTlvValue* LdpRawTlv::getParsedValue() const {
 
     uint8_t *ptr = _raw_buffer + hdr_len;
 
-    PARSE_S(ptr, len, val, nullptr);
+    PARSE_S(ptr, len, val, nullptr, true);
 
     return val;
 }

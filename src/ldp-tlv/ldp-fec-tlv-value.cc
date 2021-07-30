@@ -70,7 +70,7 @@ ssize_t LdpFecTlvValue::parse(const uint8_t *from, size_t tlv_len) {
             return -1;
         }
 
-        PARSE_S(ptr, buf_remaining, el, -1);
+        PARSE_S(ptr, buf_remaining, el, -1, true);
 
         this->addElement(el);
     }
