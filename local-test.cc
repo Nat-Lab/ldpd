@@ -156,7 +156,7 @@ int parse_and_writeback(const uint8_t *buffer, size_t len) {
         return 1;
     }
 
-    ldpd::LdpPdu *writeback_pdu = new ldpd::LdpPdu();
+    ldpd::LdpPdu writeback_pdu = ldpd::LdpPdu();
 
     printf("input size: %zu, parsed size: %zu\n", len, parse_rslt);
     printf("messages count: %zu\n", parsed_pdu.getMessages().size());
@@ -185,31 +185,30 @@ int parse_and_writeback(const uint8_t *buffer, size_t len) {
         writeback_msg->setType(msg->getType());
         writeback_msg->recalculateLength();
 
-        writeback_pdu->addMessage(writeback_msg);
+        writeback_pdu.addMessage(writeback_msg);
     }
 
-    writeback_pdu->setRouterId(parsed_pdu.getRouterId());
-    writeback_pdu->setLabelSpace(parsed_pdu.getLabelSpace());
-    writeback_pdu->recalculateLength();
+    writeback_pdu.setRouterId(parsed_pdu.getRouterId());
+    writeback_pdu.setLabelSpace(parsed_pdu.getLabelSpace());
+    writeback_pdu.recalculateLength();
 
-    if (writeback_pdu->length() != parsed_pdu.length()) {
+    if (writeback_pdu.length() != parsed_pdu.length()) {
         printf("writeback pdu len mismatch.");
         return 1;
     }
 
-    uint8_t *wb_buffer = (uint8_t *) malloc(writeback_pdu->length());
-    writeback_pdu->write(wb_buffer, writeback_pdu->length());
+    uint8_t *wb_buffer = (uint8_t *) malloc(writeback_pdu.length());
+    writeback_pdu.write(wb_buffer, writeback_pdu.length());
 
-    int diff_pos = diff(buffer, wb_buffer, writeback_pdu->length());
+    int diff_pos = diff(buffer, wb_buffer, writeback_pdu.length());
 
     if (diff_pos > 0) {
         printf("writeback pdu diff with orig pkt at byte %d\n", diff_pos);
-        hex_dump(buffer,  writeback_pdu->length());
+        hex_dump(buffer,  writeback_pdu.length());
         printf("==========\n");
-        hex_dump(wb_buffer,  writeback_pdu->length());
+        hex_dump(wb_buffer,  writeback_pdu.length());
     }
 
-    delete writeback_pdu;
     free(wb_buffer);
 
     printf("test passed.\n");
