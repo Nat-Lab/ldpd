@@ -1,6 +1,5 @@
 #ifndef LDP_LABEL_WITHDRAW_MESSAGE_H
 #define LDP_LABEL_WITHDRAW_MESSAGE_H
-#include <vector>
 #include "ldp-message/ldp-message-body.hh"
 #include "ldp-tlv/ldp-tlv.hh"
 
