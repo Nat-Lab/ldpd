@@ -202,16 +202,20 @@ LdpTlvValue* LdpRawTlv::getParsedValue() const {
     LdpTlvValue *val = nullptr;
 
     switch(type) {
-        case 0x0100: {
+        case LDP_TLVTYPE_FEC: {
             val = new LdpFecTlvValue();
             break;
         }
-        case 0x0101: {
+        case LDP_TLVTYPE_ADDRESS_LIST: {
             val = new LdpAddressTlvValue();
             break;
         }
-        case 0x0200: {
+        case LDP_TLVTYPE_GENERIC_LABEL: {
             val = new LdpGenericLabelTlvValue();
+            break;
+        }
+        case LDP_TLVTYPE_COMMON_HELLO: {
+            val = new LdpCommonHelloParamsTlvValue();
             break;
         }
         default:
