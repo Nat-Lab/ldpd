@@ -5,6 +5,8 @@
 #include "core/serializable.hh"
 #include "ldp-message/ldp-message.hh"
 
+#define LDP_VERSION 1
+
 namespace ldpd {
 
 class LdpPdu : public Serializable {
@@ -22,13 +24,13 @@ public:
     ssize_t setRouterId(uint32_t router_id);
     ssize_t setLabelSpace(uint16_t label_space);
 
-    ssize_t addMessage(LdpRawMessage *message);
+    ssize_t addMessage(LdpMessage *message);
     void clearMessages();
 
     const char* getRouterIdString() const;
     ssize_t setRouterIdString(const char* id);
 
-    const std::vector<LdpRawMessage *> getMessages() const;
+    const std::vector<LdpMessage *> getMessages() const;
 
     uint16_t recalculateLength();
 
@@ -37,7 +39,7 @@ private:
     uint16_t _length;
     uint32_t _routerId;
     uint16_t _labelSpace;
-    std::vector<LdpRawMessage *> _messages;
+    std::vector<LdpMessage *> _messages;
 
 // ----------------------------------------------------------------------------
 

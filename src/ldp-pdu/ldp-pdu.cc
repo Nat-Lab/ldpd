@@ -9,7 +9,7 @@
 namespace ldpd {
 
 LdpPdu::LdpPdu() : _messages() {
-    _version = 1;
+    _version = LDP_VERSION;
     _length = 0;
     _routerId = 0;
     _labelSpace = 0;
@@ -118,7 +118,7 @@ ssize_t LdpPdu::setLabelSpace(uint16_t labelSpace) {
  * @param message message 
  * @returns bytes added.
  */
-ssize_t LdpPdu::addMessage(LdpRawMessage *message) {
+ssize_t LdpPdu::addMessage(LdpMessage *message) {
     _messages.push_back(message);
     this->recalculateLength();
 
@@ -130,7 +130,7 @@ ssize_t LdpPdu::addMessage(LdpRawMessage *message) {
  * 
  */
 void LdpPdu::clearMessages() {
-    for (LdpRawMessage *msg : _messages) {
+    for (LdpMessage *msg : _messages) {
         delete msg;
     }
 
@@ -168,7 +168,7 @@ ssize_t LdpPdu::setRouterIdString(const char* id) {
  * 
  * @return const std::vector<LdpRawMessage * list of messages.
  */
-const std::vector<LdpRawMessage *> LdpPdu::getMessages() const {
+const std::vector<LdpMessage *> LdpPdu::getMessages() const {
     return _messages;
 }
 
@@ -182,7 +182,7 @@ const std::vector<LdpRawMessage *> LdpPdu::getMessages() const {
 uint16_t LdpPdu::recalculateLength() {
     _length = 0;
 
-    for (const LdpRawMessage *msg : _messages) {
+    for (const LdpMessage *msg : _messages) {
         _length += msg->length();
     }
 
@@ -220,7 +220,7 @@ ssize_t LdpPdu::parse(const uint8_t *from, size_t msg_sz) {
     }
 
     while (msgs_len > 0) {
-        LdpRawMessage *msg = new LdpRawMessage();
+        LdpMessage *msg = new LdpMessage();
 
         PARSE_S(ptr, msgs_len, msg, -1, true);
 
@@ -253,7 +253,7 @@ ssize_t LdpPdu::write(uint8_t *to, size_t buf_sz) const {
     PUTVAL_S(ptr, buf_remaining, uint32_t, _routerId, , -1);
     PUTVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, htons, -1);
 
-    for (const LdpRawMessage *msg : _messages) {
+    for (const LdpMessage *msg : _messages) {
         WRITE_S(ptr, buf_remaining, msg, -1);
     }
 
@@ -268,7 +268,7 @@ ssize_t LdpPdu::write(uint8_t *to, size_t buf_sz) const {
 size_t LdpPdu::length() const {
     size_t len = sizeof(_version) + sizeof(_length) + sizeof(_routerId) + sizeof(_labelSpace);
 
-    for (const LdpRawMessage *msg : _messages) {
+    for (const LdpMessage *msg : _messages) {
         len += msg->length();
     }
 
