@@ -76,7 +76,7 @@ ssize_t LdpGenericLabelTlvValue::write(uint8_t *to, size_t buf_sz) const {
     }
 
     uint32_t lbl = htonl(_label) & htonl(0x000fffff);
-    PUTVAL_S(to, buf_sz, uint32_t, _label, , -1);
+    PUTVAL_S(to, buf_sz, uint32_t, lbl, , -1);
 
     return sizeof(uint32_t);
 }
