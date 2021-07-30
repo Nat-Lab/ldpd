@@ -120,7 +120,6 @@ ssize_t LdpPdu::setLabelSpace(uint16_t labelSpace) {
  */
 ssize_t LdpPdu::addMessage(LdpMessage *message) {
     _messages.push_back(message);
-    this->recalculateLength();
 
     return message->length();
 }
