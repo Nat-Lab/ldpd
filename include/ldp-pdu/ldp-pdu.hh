@@ -18,9 +18,9 @@ public:
     uint16_t getLabelSpace() const;
 
     ssize_t setVersion(uint16_t version);
-    ssize_t setLength(uint16_t version);
-    ssize_t setRouterId(uint32_t version);
-    ssize_t setLabelSpace(uint16_t version);
+    ssize_t setLength(uint16_t length);
+    ssize_t setRouterId(uint32_t router_id);
+    ssize_t setLabelSpace(uint16_t label_space);
 
     ssize_t addMessage(LdpRawMessage *message);
     void clearMessages();
