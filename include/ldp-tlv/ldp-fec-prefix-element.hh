@@ -1,10 +1,11 @@
 #ifndef LDP_FEC_PREFIX_ELEMENT_H
 #define LDP_FEC_PREFIX_ELEMENT_H
 #include "core/serializable.hh"
+#include "ldp-tlv/ldp-fec-element.hh"
 
 namespace ldpd {
 
-class LdpFecPrefixElement : public Serializable {
+class LdpFecPrefixElement : public LdpFecElement {
 public:
     LdpFecPrefixElement();
     uint8_t getType() const;
