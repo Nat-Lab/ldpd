@@ -102,7 +102,7 @@ ssize_t LdpMessage::parse(const uint8_t *from, size_t buf_sz) {
         return -1;
     }
 
-    GETVAL_S(buffer, msg_len, uint32_t, _id, ntohs, -1);
+    GETVAL_S(buffer, msg_len, uint32_t, _id, ntohl, -1);
 
     if (_type & 0b1000000000000000) {
         _unknown = true;
@@ -141,7 +141,7 @@ ssize_t LdpMessage::write(uint8_t *to, size_t buf_sz) const {
 
     PUTVAL_S(ptr, buf_remaining, uint16_t, type_val, htons, -1);
     PUTVAL_S(ptr, buf_remaining, uint16_t, _length, htons, -1);
-    PUTVAL_S(ptr, buf_remaining, uint32_t, _id, htons, -1);
+    PUTVAL_S(ptr, buf_remaining, uint32_t, _id, htonl, -1);
 
     for (const LdpRawTlv *msg : _tlvs) {
         WRITE_S(ptr, buf_remaining, msg, -1);
