@@ -29,6 +29,8 @@ ssize_t LdpAddressMessageBody::setAddresses(LdpRawTlv *tlv) {
     }
 
     _addresses = tlv;
+
+    return tlv->length();
 }
 
 const LdpRawTlv* LdpAddressMessageBody::getAddresses() const {

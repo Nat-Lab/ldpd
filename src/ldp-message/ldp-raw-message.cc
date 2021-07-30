@@ -217,6 +217,10 @@ LdpMessageBody* LdpRawMessage::getParsedBody() const {
     LdpMessageBody *body = nullptr;
 
     switch(type) {
+        case 0x0300: {
+            body = new LdpAddressMessageBody();
+            break;
+        }
         case 0x0400: {
             body = new LdpLabelMappingMessageBody();
             break;

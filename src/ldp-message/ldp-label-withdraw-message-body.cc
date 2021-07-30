@@ -63,7 +63,7 @@ ssize_t LdpLabelWithdrawMessageBody::setLabelTlv(LdpRawTlv *tlv) {
         }
 
         _label = nullptr;
-        return;
+        return 0;
     }
 
     uint16_t type = tlv->getType();
