@@ -3,6 +3,19 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#define WRITE_S(dst_buf, dst_buf_sz_var, src_obj, err_ret) {\
+    ssize_t ret = src_obj->write(dst_buf, dst_buf_sz_var);\
+    if (ret < 0) { return err_ret; }\
+    dst_buf += ret; dst_buf_sz_var -= ret;\
+}
+
+#define PARSE_S(src_buf, src_buf_sz_var, dst_obj, err_ret) {\
+    ssize_t ret = dst_obj->parse(src_buf, src_buf_sz_var);\
+    if (ret < 0) { return err_ret; }\
+    src_buf += ret; src_buf_sz_var -= ret;\
+}
+
+
 namespace ldpd {
 
 class Serializable {
