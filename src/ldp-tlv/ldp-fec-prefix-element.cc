@@ -62,7 +62,7 @@ ssize_t LdpFecPrefixElement::parse(const uint8_t *from, size_t buf_sz) {
 
     GETVAL_S(ptr, buf_remaining, uint16_t, af, ntohs, -1);
 
-    if (af != AF_INET) {
+    if (af != 1) {
         log_fatal("unknow af: %u\n", af);
         return -1;
     }
