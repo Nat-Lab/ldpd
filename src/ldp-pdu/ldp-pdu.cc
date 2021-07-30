@@ -9,7 +9,7 @@
 namespace ldpd {
 
 LdpPdu::LdpPdu() : _messages() {
-    _version = 0;
+    _version = 1;
     _length = 0;
     _routerId = 0;
     _labelSpace = 0;
@@ -113,11 +113,14 @@ ssize_t LdpPdu::setLabelSpace(uint16_t labelSpace) {
  * note: LdpPdu class handles freeing of the LdpMessage objects. DO NOT free it
  * yourself after adding message to pdu. DO NOT pass local variable pointer.
  * 
+ * note: this also update length field.
+ * 
  * @param message message 
  * @returns bytes added.
  */
 ssize_t LdpPdu::addMessage(LdpRawMessage *message) {
     _messages.push_back(message);
+    this->recalculateLength();
 
     return message->length();
 }
