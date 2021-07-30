@@ -11,8 +11,8 @@ public:
     virtual ~LdpLabelMappingMessageBody();
     uint16_t getType() const;
 
-    void setFecTlv(LdpRawTlv *tlv);
-    void setLabelTlv(LdpRawTlv *tlv);
+    ssize_t setFecTlv(LdpRawTlv *tlv);
+    ssize_t setLabelTlv(LdpRawTlv *tlv);
 
     const LdpRawTlv* getFecTlv() const;
     const LdpRawTlv* getLabelTlv() const;

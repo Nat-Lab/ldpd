@@ -28,13 +28,15 @@ uint16_t LdpLabelWithdrawMessageBody::getType() const {
  * @brief set fec tlv.
  * 
  * @param tlv tlv - we will handle freeing this.
+ * 
+ * @return bytes changed, or -1 on error.
  */
-void LdpLabelWithdrawMessageBody::setFecTlv(LdpRawTlv *tlv) {
+ssize_t LdpLabelWithdrawMessageBody::setFecTlv(LdpRawTlv *tlv) {
     uint16_t type = tlv->getType();
 
     if (type != 0x0100) {
         log_error("tlv not fec tlv: want type 0x0100 but saw 0x%.4x\n", type);
-        return;
+        return -1;
     }
 
     if (_fec != nullptr) {
@@ -42,6 +44,8 @@ void LdpLabelWithdrawMessageBody::setFecTlv(LdpRawTlv *tlv) {
     }
 
     _fec = tlv;
+
+    return tlv->length();
 }
 
 /**
@@ -49,8 +53,10 @@ void LdpLabelWithdrawMessageBody::setFecTlv(LdpRawTlv *tlv) {
  * 
  * @param tlv tlv - we will handle freeing this. set to nullptr to remove lbl
  * tlv.
+ * 
+ * @return bytes changed, or -1 on error.
  */
-void LdpLabelWithdrawMessageBody::setLabelTlv(LdpRawTlv *tlv) {
+ssize_t LdpLabelWithdrawMessageBody::setLabelTlv(LdpRawTlv *tlv) {
     if (tlv == nullptr) {
         if (_label != nullptr) {
             delete _label;
@@ -64,7 +70,7 @@ void LdpLabelWithdrawMessageBody::setLabelTlv(LdpRawTlv *tlv) {
 
     if (type != 0x0200 && type != 0x0201 && type != 0x0202) {
         log_error("tlv not lbl tlv: want type 0x0200, 0x0201 or 0x0202 but saw 0x%.4x\n", type);
-        return;
+        return -1;
     }
 
     if (_label != nullptr) {
@@ -72,6 +78,8 @@ void LdpLabelWithdrawMessageBody::setLabelTlv(LdpRawTlv *tlv) {
     }
 
     _label = tlv;
+
+    return tlv->length();
 }
 
 /**
@@ -107,13 +115,19 @@ ssize_t LdpLabelWithdrawMessageBody::parse(const uint8_t *from, size_t msg_sz) {
 
     PARSE_S(ptr, buf_remaining, fec, -1, true);
 
-    this->setFecTlv(fec);
+    if (this->setFecTlv(fec) < 0) {
+        delete fec;
+        return -1;
+    }
 
     LdpRawTlv *lbl = new LdpRawTlv();
 
     PARSE_S(ptr, buf_remaining, lbl, -1, true);
 
-    this->setLabelTlv(lbl);
+    if (this->setLabelTlv(lbl) < 0) {
+        delete lbl;
+        return -1;
+    }
 
     if (buf_remaining != 0) {
         log_fatal("reached the end but buf not end (%zu over).\n", buf_remaining);
