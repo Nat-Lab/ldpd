@@ -4,8 +4,6 @@
 #include "ldp-tlv/ldp-tlv-value.hh"
 #include "ldp-fec-element.hh"
 
-#include <vector>
-
 namespace ldpd {
 
 class LdpCommonHelloParamsTlvValue : public LdpTlvValue {
