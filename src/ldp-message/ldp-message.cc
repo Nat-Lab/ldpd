@@ -94,12 +94,6 @@ ssize_t LdpMessage::parse(const uint8_t *from, size_t buf_sz) {
 
     GETVAL_S(buffer, buf_remaining, uint16_t, _type, ntohs, -1);
     GETVAL_S(buffer, buf_remaining, uint16_t, _length, ntohs, -1);
-    GETVAL_S(buffer, buf_remaining, uint32_t, _id, ntohs, -1);
-
-    if (_type & 0b1000000000000000) {
-        _unknown = true;
-        _type |= 0b0111111111111111;
-    }
 
     size_t msg_len = _length;
     
@@ -108,10 +102,19 @@ ssize_t LdpMessage::parse(const uint8_t *from, size_t buf_sz) {
         return -1;
     }
 
+    GETVAL_S(buffer, msg_len, uint32_t, _id, ntohs, -1);
+
+    if (_type & 0b1000000000000000) {
+        _unknown = true;
+        _type |= 0b0111111111111111;
+    }
+
+
+
     while (msg_len > 0) {
         LdpRawTlv *tlv = new LdpRawTlv();
 
-        PARSE_S(buffer, buf_remaining, tlv, -1, true);
+        PARSE_S(buffer, msg_len, tlv, -1, true);
 
         this->addTlv(tlv);
     }

@@ -28,6 +28,8 @@ void LdpAddressTlvValue::clearAddresses() {
 
 ssize_t LdpAddressTlvValue::addAddress(uint32_t address) {
     _addresses.push_back(address);
+
+    return sizeof(uint32_t);
 }
 
 ssize_t LdpAddressTlvValue::parse(const uint8_t *from, size_t tlv_sz) {
