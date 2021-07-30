@@ -97,7 +97,7 @@ ssize_t LdpFecPrefixElement::write(uint8_t *to, size_t buf_sz) const {
     size_t buf_remaining = buf_sz;
     uint8_t *ptr = to;
 
-    PUTVAL_S(ptr, buf_remaining, uint16_t, AF_INET, htons, -1);
+    PUTVAL_S(ptr, buf_remaining, uint16_t, 1, htons, -1);
     PUTVAL_S(ptr, buf_remaining, uint8_t, _prelen, , -1);
 
     memcpy(ptr, &_prefix, prefix_buf_len);
