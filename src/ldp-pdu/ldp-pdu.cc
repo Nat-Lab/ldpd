@@ -258,14 +258,7 @@ ssize_t LdpPdu::write(uint8_t *to, size_t buf_sz) const {
     PUTVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, htons, -1);
 
     for (const LdpRawMessage *msg : _messages) {
-        ssize_t ret = msg->write(ptr, buf_remaining);
-
-        if (ret < 0) {
-            return -1;
-        }
-
-        buf_remaining -= ret;
-        ptr += ret;
+        WRITE_S(ptr, buf_remaining, msg, -1);
     }
 
     return ptr - to;

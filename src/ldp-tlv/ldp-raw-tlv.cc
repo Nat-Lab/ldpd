@@ -176,8 +176,7 @@ ssize_t LdpRawTlv::setValue(const LdpTlvValue *value) {
 
     PUTVAL_S(ptr, buf_remaining, uint16_t, val_type, htons, -1);
     PUTVAL_S(ptr, buf_remaining, uint16_t, val_sz, htons, -1);
-
-    value->write(ptr, buf_remaining);
+    WRITE_S(ptr, buf_remaining, value, -1);
 
     return _raw_buffer_size;
 }

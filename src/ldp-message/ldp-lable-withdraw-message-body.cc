@@ -155,27 +155,13 @@ ssize_t LdpLabelWithdrawMessageBody::write(uint8_t *to, size_t buf_sz) const {
         return -1;
     }
 
-    ssize_t ret = _fec->write(to, buf_remaining);
-
-    if (ret < 0) {
-        return -1;
-    }
-
-    buf_remaining -= ret;
-    ptr += ret;
+    WRITE_S(ptr, buf_remaining, _fec, -1);
 
     if (_label == nullptr) {
         return ptr - to;
     }
 
-    ret = _label->write(to, buf_remaining);
-
-    if (ret < 0) {
-        return -1;
-    }
-
-    buf_remaining -= ret;
-    ptr += ret;
+    WRITE_S(ptr, buf_remaining, _label, -1);
 
     return ptr - to;
 }
