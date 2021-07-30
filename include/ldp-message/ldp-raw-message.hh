@@ -20,7 +20,7 @@ public:
 
     ssize_t setType(uint16_t type);
     ssize_t setLength(uint16_t length);
-    ssize_t setId(uint16_t length);
+    ssize_t setId(uint32_t length);
 
     ssize_t setRawBody(size_t size, const uint8_t *src);
     ssize_t setBody(const LdpMessageBody *value);

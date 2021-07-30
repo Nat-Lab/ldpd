@@ -113,6 +113,21 @@ ssize_t LdpRawMessage::setLength(uint16_t length) {
 }
 
 /**
+ * @brief set message id in the mssage. 
+ * 
+ * @param id id in host byte order.
+ * 
+ * @return ssize_t bytes changed, or -1 on error.
+ */
+ssize_t LdpRawMessage::setId(uint32_t id) {
+    NEED_MIN_BUFSZ((2 * sizeof(uint16_t)) + sizeof(uint32_t), 0);
+
+    ((uint32_t *) _raw_buffer)[1] = htonl(id);
+
+    return sizeof(uint32_t);
+}
+
+/**
  * @brief set the raw value buffer.
  * 
  * note: this uses memcpy. if you try to setRawValue with a previously returned
@@ -177,12 +192,7 @@ ssize_t LdpRawMessage::setBody(const LdpMessageBody *value) {
     PUTVAL_S(ptr, buf_remaining, uint16_t, value->getType(), htons, -1);
     PUTVAL_S(ptr, buf_remaining, uint16_t, value->length() + sizeof(uint32_t), htons, -1);
     PUTVAL_S(ptr, buf_remaining, uint32_t, currentRid, htonl, -1);
-
-    ssize_t ret = value->write(ptr, buf_remaining);
-
-    if (ret < 0) {
-        return -1;
-    }
+    WRITE_S(ptr, buf_remaining, value, -1);
 
     return _raw_buffer_size;
 }
