@@ -28,6 +28,12 @@ int main() {
         printf("route src: %s/%u\n", inet_ntoa(*(in_addr *) &rt.src), rt.src_len);
         printf("route dst: %s/%u\n", inet_ntoa(*(in_addr *) &rt.dst), rt.dst_len);
         printf("route gw: %s\n", inet_ntoa(*(in_addr *) &rt.gw));
+
+        for (const uint32_t &lbl : rt.mpls_stack) {
+            printf("mpls stack: %u\n", lbl);
+        }
+
+        printf("\n");
     }
 
     nl.close();

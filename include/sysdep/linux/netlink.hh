@@ -13,6 +13,13 @@
 
 #include <vector>
 
+#define PARSE_OK 0
+#define PARSE_SKIP 1
+
+#define PROCESS_NEXT 0
+#define PROCESS_END 1
+#define PROCESS_ERR 2
+
 namespace ldpd {
 
 extern "C" {

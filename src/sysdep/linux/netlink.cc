@@ -1,6 +1,6 @@
 #include "sysdep/linux/netlink.hh"
 #include <errno.h>
-#include <future>
+#include <arpa/inet.h>
 
 namespace ldpd {
 
@@ -192,7 +192,7 @@ int Netlink::getReply(unsigned int seq, int (*handler) (void *, const struct nlm
                 continue;
             }
 
-            if (handler(data, msg) == 0) {
+            if (handler(data, msg) == PROCESS_END) {
                 end = true;
             }
         }
@@ -207,13 +207,13 @@ int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) 
 
     switch(msg->nlmsg_type) {
         case NLMSG_DONE: {
-            return 0;
+            return PROCESS_END;
         }
         case RTM_NEWLINK: {
             Interface iface = Interface();
-            parseInterface(iface, msg);
-            
-            to->push_back(iface);
+            if (parseInterface(iface, msg) == PARSE_OK) {
+                to->push_back(iface);
+            }
 
             break;
         }
@@ -223,7 +223,7 @@ int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) 
         }
     }
 
-    return 1;
+    return PROCESS_NEXT;
 }
 
 int Netlink::procressRouteResults(void *routes, const struct nlmsghdr *msg) {
@@ -231,13 +231,14 @@ int Netlink::procressRouteResults(void *routes, const struct nlmsghdr *msg) {
 
     switch(msg->nlmsg_type) {
         case NLMSG_DONE: {
-            return 0;
+            return PROCESS_END;
         }
         case RTM_NEWROUTE: {
             Route r = Route();
-            parseRoute(r, msg);
+            if (parseRoute(r, msg) == PARSE_OK) {
+                to->push_back(r);
+            }
             
-            to->push_back(r);
             break;
         };
         default: {
@@ -246,7 +247,7 @@ int Netlink::procressRouteResults(void *routes, const struct nlmsghdr *msg) {
         }
     }
 
-    return 1;
+    return PROCESS_NEXT;
 }
 
 /**
@@ -283,29 +284,32 @@ int Netlink::parseInterface(Interface &dst, const struct nlmsghdr *src) {
 int Netlink::parseRoute(Route &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWROUTE) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
-        return 1;
+        return PARSE_SKIP;
     }
 
     const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(src);
 
     if (rt->rtm_type != RTN_UNICAST) {
         log_debug("ignored a non-unicast route.\n");
-        return 0;
+        return PARSE_SKIP;
     }
 
     if (rt->rtm_family != AF_INET) {
         log_debug("ignored a non-inet route with family %u\n", rt->rtm_family);
-        return 0;
+        return PARSE_SKIP;
     }
 
     if (rt->rtm_table != RT_TABLE_MAIN) {
         log_debug("ignored a route not in main table.\n");
-        return 0;
+        return PARSE_SKIP;
     }
+
+    const struct rtattr* encap_attr = nullptr;
 
     dst.dst_len = rt->rtm_dst_len;
     dst.src_len = rt->rtm_src_len;
     dst.mpls_encap = false;
+    dst.mpls_stack = std::vector<uint32_t>();
 
     size_t sz = RTM_PAYLOAD(src);
 
@@ -326,19 +330,35 @@ int Netlink::parseRoute(Route &dst, const struct nlmsghdr *src) {
             case RTA_ENCAP_TYPE: {
                 short type = *(short *) RTA_DATA(attr);
                 if (type == LWTUNNEL_ENCAP_MPLS) {
-                    log_debug("mpls encap!\n");
                     dst.mpls_encap = true;
                 }
                 break;
             }
             case RTA_ENCAP: {
-                log_debug("todo: parse mpls stack (iff dst.mpls_encap set)\n");
+                encap_attr = attr;
                 break;
             }
         }
     }
 
-    return 0;
+    if (dst.mpls_encap) {
+        if (encap_attr == nullptr) {
+            log_error("rta_encap_type == mpls, but no rta_encap found.\n");
+            return PARSE_SKIP;
+        }
+
+        size_t len = RTA_PAYLOAD(encap_attr);
+
+        const uint32_t *ptr = (const uint32_t *) RTA_DATA(encap_attr);
+
+        log_debug("1st as uint32: %u\n", ptr[0]); // what is this?
+
+        for (size_t i = 1; i < len/sizeof(uint32_t); ++i) {
+            dst.mpls_stack.push_back(ntohl(ptr[i]) >> 12);
+        }
+    }
+
+    return PARSE_OK;
 }
 
 }
