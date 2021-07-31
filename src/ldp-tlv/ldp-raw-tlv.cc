@@ -218,6 +218,10 @@ LdpTlvValue* LdpRawTlv::getParsedValue() const {
             val = new LdpCommonHelloParamsTlvValue();
             break;
         }
+        case LDP_TLVTYPE_IPV4_TRANSPORT: {
+            val = new LdpIpv4TransportAddressTlvValue();
+            break;
+        }
         case LDP_TLVTYPE_CONFIGURATION_SEQ: {
             val = new LdpConfigSeqNumTlvValue();
             break;
