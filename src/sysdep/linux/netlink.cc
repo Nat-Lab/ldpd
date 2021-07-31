@@ -1,5 +1,6 @@
 #include "sysdep/linux/netlink.hh"
 #include <errno.h>
+#include <future>
 
 namespace ldpd {
 
@@ -65,66 +66,39 @@ int Netlink::close() {
 int Netlink::getInterfaces(std::vector<Interface> &to) {
     unsigned int this_seq = ++_seq;
 
-    if (sendRequest(this_seq, RTM_GETLINK, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (sendQuery(this_seq, RTM_GETLINK, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
         return 1;
     }
 
-    bool ends = false;
-
-    uint8_t buffer[8192];
-
-    do {
-        ssize_t res = getReply(buffer, sizeof(buffer));
-
-        if (res < 0) {
-            log_error("recvmsg(): %s\n", strerror(errno));
-            return 1;
-        }
-
-        if (res == 0) {
-            continue;
-        }
-
-        for (struct nlmsghdr *msg = (struct nlmsghdr *) buffer; NLMSG_OK(msg, res); msg = NLMSG_NEXT(msg, res)) {
-            if (msg->nlmsg_seq != this_seq) {
-                log_warn("ignored nl reply from kernel with seq %u\n", msg->nlmsg_seq);
-                continue;
-            }
-
-            switch(msg->nlmsg_type) {
-                case NLMSG_DONE: {
-                    ends = true;
-                    break;
-                }
-                case RTM_NEWLINK: {
-                    Interface iface = Interface();
-                    parseInterface(iface, msg);
-                    
-                    to.push_back(iface);
-
-                    break;
-                }
-                default: {
-                    log_warn("ignored unknown nlmsg type %u\n", msg->nlmsg_type);
-                    break;
-                }
-            }
-        }
-
-    } while(!ends);
+    if(getReply(this_seq, Netlink::procressInterfaceResults, &to) != 0) {
+        return 1;
+    }
 
     return 0;
 }
 
+int Netlink::getRoutes(std::vector<Route> &to) {
+    unsigned int this_seq = ++_seq;
+
+    if (sendQuery(this_seq, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+        return 1;
+    }
+
+    // todo
+
+    return 0;
+}
+
+
 /**
- * @brief send a request to rtnl socket.
+ * @brief send a query of given type to rtnl socket.
  * 
  * @param seq seq to id this request.
  * @param type type.
  * @param flags flags.
  * @return ssize_t ret val of sendmsg.
  */
-ssize_t Netlink::sendRequest(unsigned int seq, unsigned short type, unsigned short flags) const {
+ssize_t Netlink::sendQuery(unsigned int seq, unsigned short type, unsigned short flags) const {
     struct sockaddr_nl kernel;
     struct msghdr nl_msg;
     struct iovec io;
@@ -157,7 +131,9 @@ ssize_t Netlink::sendRequest(unsigned int seq, unsigned short type, unsigned sho
     return sendmsg(_fd, (const struct msghdr *) &nl_msg, 0);
 }
 
-ssize_t Netlink::getReply(uint8_t *buffer, size_t buf_sz) const {
+int Netlink::getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data) const {
+    uint8_t buffer[8192];
+
     struct sockaddr_nl kernel;
 
     memset(&kernel, 0, sizeof(struct sockaddr_nl));
@@ -171,14 +147,65 @@ ssize_t Netlink::getReply(uint8_t *buffer, size_t buf_sz) const {
     memset(&rslt_io, 0, sizeof(struct iovec));
 
     rslt_io.iov_base = buffer;
-    rslt_io.iov_len = buf_sz;
+    rslt_io.iov_len = sizeof(buffer);
 
     rslt_hdr.msg_iov = &rslt_io;
     rslt_hdr.msg_iovlen = 1;
     rslt_hdr.msg_name = &kernel;
     rslt_hdr.msg_namelen = sizeof(struct sockaddr_nl);
 
-    return recvmsg(_fd, &rslt_hdr, 0);
+    bool end = false;
+
+    do {
+        ssize_t res = recvmsg(_fd, &rslt_hdr, 0);
+
+        if (res < 0) {
+            log_error("recvmsg(): %s\n", strerror(errno));
+            return 1;
+        }
+
+        if (res == 0) {
+            continue;
+        }
+
+        for (struct nlmsghdr *msg = (struct nlmsghdr *) buffer; NLMSG_OK(msg, res); msg = NLMSG_NEXT(msg, res)) {
+            if (msg->nlmsg_seq != seq) { // fixme: save them somewhere?
+                log_warn("ignored nl reply from kernel with seq %u\n", msg->nlmsg_seq);
+                continue;
+            }
+
+            if (handler(data, msg) == 0) {
+                end = true;
+            }
+        }
+
+    } while (!end);
+
+    return 0;
+}
+
+int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) {
+    std::vector<Interface> *to = (std::vector<Interface> *) ifaces;
+
+    switch(msg->nlmsg_type) {
+        case NLMSG_DONE: {
+            return 0;
+        }
+        case RTM_NEWLINK: {
+            Interface iface = Interface();
+            parseInterface(iface, msg);
+            
+            to->push_back(iface);
+
+            break;
+        }
+        default: {
+            log_warn("ignored unknown nlmsg type %u\n", msg->nlmsg_type);
+            break;
+        }
+    }
+
+    return 1;
 }
 
 /**

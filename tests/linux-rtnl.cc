@@ -17,5 +17,7 @@ int main() {
         printf("interface %d: %s\n", iface.id, iface.ifname.c_str());
     }
 
+    nl.close();
+
     return 0;
 }
