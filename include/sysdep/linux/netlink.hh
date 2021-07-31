@@ -43,6 +43,7 @@ private:
     int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data) const;
 
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);
+    static int procressRouteResults(void *routes, const struct nlmsghdr *);
 
     pid_t _pid;
     int _fd;

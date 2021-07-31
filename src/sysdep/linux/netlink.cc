@@ -76,13 +76,19 @@ int Netlink::getInterfaces(std::vector<Interface> &to) {
         return 1;
     }
 
-    if(getReply(this_seq, Netlink::procressInterfaceResults, &to) != 0) {
+    if (getReply(this_seq, Netlink::procressInterfaceResults, &to) != 0) {
         return 1;
     }
 
     return 0;
 }
 
+/**
+ * @brief get routes. will block.
+ * 
+ * @param to location to store retrieved routes.
+ * @return int status. 0 on success, 1 on error.
+ */
 int Netlink::getRoutes(std::vector<Route> &to) {
     unsigned int this_seq = ++_seq;
 
@@ -90,7 +96,9 @@ int Netlink::getRoutes(std::vector<Route> &to) {
         return 1;
     }
 
-    // todo
+    if (getReply(this_seq, Netlink::procressRouteResults, &to) != 0) {
+        return 1;
+    }
 
     return 0;
 }
@@ -218,6 +226,29 @@ int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) 
     return 1;
 }
 
+int Netlink::procressRouteResults(void *routes, const struct nlmsghdr *msg) {
+    std::vector<Route> *to = (std::vector<Route> *) routes;
+
+    switch(msg->nlmsg_type) {
+        case NLMSG_DONE: {
+            return 0;
+        }
+        case RTM_NEWROUTE: {
+            Route r = Route();
+            parseRoute(r, msg);
+            
+            to->push_back(r);
+            break;
+        };
+        default: {
+            log_warn("ignored unknown nlmsg type %u\n", msg->nlmsg_type);
+            break;
+        }
+    }
+
+    return 1;
+}
+
 /**
  * @brief parse an interface from nlmsg.
  * 
@@ -235,12 +266,73 @@ int Netlink::parseInterface(Interface &dst, const struct nlmsghdr *src) {
 
     dst.id = iface->ifi_index;
 
-    size_t sz = src->nlmsg_len - sizeof(struct nlmsghdr);
+    size_t sz = RTM_PAYLOAD(src);
 
     for (const struct rtattr *attr = IFLA_RTA(iface); RTA_OK(attr, sz); attr = RTA_NEXT(attr, sz)) {
         switch (attr->rta_type) {
             case IFLA_IFNAME: {
                 dst.ifname = std::string((const char *) RTA_DATA(attr));
+                break;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int Netlink::parseRoute(Route &dst, const struct nlmsghdr *src) {
+    if (src->nlmsg_type != RTM_NEWROUTE) {
+        log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
+        return 1;
+    }
+
+    const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(src);
+
+    if (rt->rtm_type != RTN_UNICAST) {
+        log_debug("ignored a non-unicast route.\n");
+        return 0;
+    }
+
+    if (rt->rtm_family != AF_INET) {
+        log_debug("ignored a non-inet route with family %u\n", rt->rtm_family);
+        return 0;
+    }
+
+    if (rt->rtm_table != RT_TABLE_MAIN) {
+        log_debug("ignored a route not in main table.\n");
+        return 0;
+    }
+
+    dst.dst_len = rt->rtm_dst_len;
+    dst.src_len = rt->rtm_src_len;
+    dst.mpls_encap = false;
+
+    size_t sz = RTM_PAYLOAD(src);
+
+    for (const struct rtattr *attr = RTM_RTA(rt); RTA_OK(attr, sz); attr = RTA_NEXT(attr, sz)) {
+        switch (attr->rta_type) {
+            case RTA_SRC: {
+                dst.src = *(uint32_t *) RTA_DATA(attr);
+                break;
+            }
+            case RTA_DST: {
+                dst.dst = *(uint32_t *) RTA_DATA(attr);
+                break;
+            }
+            case RTA_GATEWAY: {
+                dst.gw = *(uint32_t *) RTA_DATA(attr);
+                break;
+            }
+            case RTA_ENCAP_TYPE: {
+                short type = *(short *) RTA_DATA(attr);
+                if (type == LWTUNNEL_ENCAP_MPLS) {
+                    log_debug("mpls encap!\n");
+                    dst.mpls_encap = true;
+                }
+                break;
+            }
+            case RTA_ENCAP: {
+                log_debug("todo: parse mpls stack (iff dst.mpls_encap set)\n");
                 break;
             }
         }
