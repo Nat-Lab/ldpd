@@ -14,6 +14,8 @@ int main() {
         return 1;
     }
 
+    printf("begin ifaces ====\n");
+
     for (const ldpd::Interface &iface : ifaces) {
         printf("interface %d: %s\n", iface.id, iface.ifname.c_str());
     }
@@ -24,7 +26,7 @@ int main() {
         return 1;
     }
 
-    printf("\n");
+    printf("\nbegin ip routes ====\n");
 
     for (const ldpd::Ipv4Route &rt : rts) {
         printf("route src: %s/%u\n", inet_ntoa(*(in_addr *) &rt.src), rt.src_len);
@@ -38,6 +40,28 @@ int main() {
             }
 
             printf("mpls ttl: %u\n", rt.mpls_ttl);
+        }
+
+        printf("\n");
+    }
+
+    std::vector<ldpd::MplsRoute> mrts = std::vector<ldpd::MplsRoute>();
+
+    if (nl.getMplsRoutes(mrts)) {
+        return 1;
+    }
+
+    printf("begin mpls routes ====\n");
+
+    for (const ldpd::MplsRoute &rt : mrts) {
+        printf("mpls in label: %u\n", rt.in_label);
+        printf("gw: %s\n", inet_ntoa(*(in_addr *) &rt.gw));
+        printf("oif: %d, iif: %d\n", rt.oif, rt.iif);
+
+        if (rt.mpls_encap) {
+            for (const uint32_t &lbl : rt.mpls_stack) {
+                printf("out mpls stack: %u\n", lbl);
+            }
         }
 
         printf("\n");

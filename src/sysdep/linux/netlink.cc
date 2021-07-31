@@ -104,6 +104,19 @@ int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
     return 0;
 }
 
+int Netlink::getMplsRoutes(std::vector<MplsRoute> &to) {
+    unsigned int this_seq = ++_seq;
+
+    if (sendQuery(this_seq, AF_MPLS, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+        return 1;
+    }
+
+    if (getReply(this_seq, Netlink::procressMplsRouteResults, &to) != 0) {
+        return 1;
+    }
+
+    return 0;
+}
 
 /**
  * @brief send a query of given type to rtnl socket.
@@ -251,6 +264,30 @@ int Netlink::procressIpv4RouteResults(void *routes, const struct nlmsghdr *msg) 
     return PROCESS_NEXT;
 }
 
+int Netlink::procressMplsRouteResults(void *routes, const struct nlmsghdr *msg) {
+    std::vector<MplsRoute> *to = (std::vector<MplsRoute> *) routes;
+
+    switch(msg->nlmsg_type) {
+        case NLMSG_DONE: {
+            return PROCESS_END;
+        }
+        case RTM_NEWROUTE: {
+            MplsRoute r = MplsRoute();
+            if (parseMplsRoute(r, msg) == PARSE_OK) {
+                to->push_back(r);
+            }
+            
+            break;
+        };
+        default: {
+            log_warn("ignored unknown nlmsg type %u\n", msg->nlmsg_type);
+            break;
+        }
+    }
+
+    return PROCESS_NEXT;
+}
+
 /**
  * @brief parse an interface from nlmsg.
  * 
@@ -362,6 +399,7 @@ int Netlink::parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src) {
                     for (size_t i = 0; i < dst_len/sizeof(uint32_t); ++i) {
                         dst.mpls_stack.push_back(ntohl(ptr[i]) >> 12);
                     }
+
                     break;
                 }
                 case MPLS_IPTUNNEL_TTL: {
@@ -372,6 +410,70 @@ int Netlink::parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src) {
         }
 
     }
+
+    return PARSE_OK;
+}
+
+int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
+    if (src->nlmsg_type != RTM_NEWROUTE) {
+        log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
+        return PARSE_SKIP;
+    }
+
+    const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(src);
+
+    if (rt->rtm_type != RTN_UNICAST || rt->rtm_table != RT_TABLE_MAIN) {
+        return PARSE_SKIP;
+    }
+
+    dst.mpls_encap = false;
+    dst.mpls_stack = std::vector<uint32_t>();
+
+    size_t sz = RTM_PAYLOAD(src);
+
+    for (const struct rtattr *attr = RTM_RTA(rt); RTA_OK(attr, sz); attr = RTA_NEXT(attr, sz)) {
+        switch (attr->rta_type) {
+            case RTA_DST: {
+                dst.in_label = ntohl(*(uint32_t *) RTA_DATA(attr)) >> 12;
+                break;
+            }
+            case RTA_VIA: {
+                const struct rtvia *via = (const struct rtvia *) RTA_DATA(attr);
+                if (via->rtvia_family != AF_INET) {
+                    log_error("unsupported af: %u\n", via->rtvia_family);
+                    return PARSE_SKIP;
+                }
+                dst.gw = *(uint32_t *) via->rtvia_addr;
+                break;
+            }
+            case RTA_NEWDST: {
+                dst.mpls_encap = true;
+
+                size_t dst_len = RTA_PAYLOAD(attr);
+                const uint32_t *ptr = (const uint32_t *) RTA_DATA(attr);
+
+                if (dst_len % sizeof(uint32_t) != 0) {
+                    log_error("mpls lbl data %% sizeof(uint32_t) != 0, what?\n");
+                    return PARSE_SKIP;
+                }
+
+                for (size_t i = 0; i < dst_len/sizeof(uint32_t); ++i) {
+                    dst.mpls_stack.push_back(ntohl(ptr[i]) >> 12);
+                }
+                
+                break;
+            }
+            case RTA_OIF: {
+                dst.oif = *(uint8_t *) RTA_DATA(attr);
+                break;
+            }
+            case RTA_IIF: {
+                dst.iif = *(uint8_t *) RTA_DATA(attr);
+                break;
+            }
+        }
+    }
+
 
     return PARSE_OK;
 }
