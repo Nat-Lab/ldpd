@@ -266,7 +266,7 @@ ssize_t LdpRawTlv::parse(const uint8_t *from, size_t sz) {
     GETVAL_S(buffer, buf_remaining, uint16_t, tlv_len, ntohs, -1);
 
     if (tlv_len > buf_remaining) {
-        log_fatal("tlv_len (%zu) greater then remaining buffer (%zu), packet truncated?\n", tlv_len, buf_remaining);
+        log_fatal("tlv_len (%u) greater then remaining buffer (%zu), packet truncated?\n", tlv_len, buf_remaining);
         return -1;
     }
 
