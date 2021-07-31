@@ -35,7 +35,7 @@ void hex_dump(const void* data, size_t size) {
 }
 
 int diff(const uint8_t *a, const uint8_t *b, size_t sz) {
-    for (int i = 0; i < sz; ++i) {
+    for (unsigned int i = 0; i < sz; ++i) {
         if (a[i] != b[i]) {
             return i;
         }
@@ -111,7 +111,7 @@ ldpd::LdpRawTlv* parse_and_writeback_tlv(const ldpd::LdpRawTlv *parsed_raw_tlv) 
         case LDP_TLVTYPE_GENERIC_LABEL: {
             ldpd::LdpGenericLabelTlvValue *casted = (ldpd::LdpGenericLabelTlvValue *) parsed_val;
 
-            printf("====== val type is g-lbl. val: %lu\n", casted->getLabel());
+            printf("====== val type is g-lbl. val: %u\n", casted->getLabel());
 
             ldpd::LdpGenericLabelTlvValue *writeback = new ldpd::LdpGenericLabelTlvValue();
 
@@ -125,7 +125,7 @@ ldpd::LdpRawTlv* parse_and_writeback_tlv(const ldpd::LdpRawTlv *parsed_raw_tlv) 
         case LDP_TLVTYPE_COMMON_HELLO: {
             ldpd::LdpCommonHelloParamsTlvValue *casted = (ldpd::LdpCommonHelloParamsTlvValue *) parsed_val;
 
-            printf("====== val type is common hello. hold-t: %lu, T: %d, R: %d.\n", casted->getHoldTime(), casted->targeted(), casted->requestTargeted());
+            printf("====== val type is common hello. hold-t: %u, T: %d, R: %d.\n", casted->getHoldTime(), casted->targeted(), casted->requestTargeted());
 
             ldpd::LdpCommonHelloParamsTlvValue *writeback = new ldpd::LdpCommonHelloParamsTlvValue();
             writeback->setHoldTime(casted->getHoldTime());
@@ -178,13 +178,13 @@ int parse_and_writeback(const uint8_t *buffer, size_t len) {
 
     int count = 0;
     for (const ldpd::LdpMessage *msg : parsed_pdu.getMessages()) {
-        printf("== msg %d type: 0x%.4x, len: %zu, (%zu tlvs)\n", ++count, msg->getType(), msg->getLength(), msg->getTlvs().size());
+        printf("== msg %d type: 0x%.4x, len: %u, (%zu tlvs)\n", ++count, msg->getType(), msg->getLength(), msg->getTlvs().size());
         
         ldpd::LdpMessage *writeback_msg = new ldpd::LdpMessage();
 
         int tlv_count = 0;
         for (const ldpd::LdpRawTlv *tlv : msg->getTlvs()) {
-            printf("==== tlv %d type: 0x%.4x, len: %zu\n", ++tlv_count, tlv->getType(), tlv->getLength());
+            printf("==== tlv %d type: 0x%.4x, len: %u\n", ++tlv_count, tlv->getType(), tlv->getLength());
 
             ldpd::LdpRawTlv *writeback_tlv = parse_and_writeback_tlv(tlv);
 
