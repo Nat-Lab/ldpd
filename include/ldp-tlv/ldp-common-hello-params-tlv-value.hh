@@ -16,7 +16,7 @@ public:
     bool targeted() const;
     bool requestTargeted() const;
 
-    ssize_t setHelloTime(uint16_t holdTime);
+    ssize_t setHoldTime(uint16_t holdTime);
     ssize_t setTargeted(bool targeted);
     ssize_t setRequestTargeted(bool requestTargeted);
 

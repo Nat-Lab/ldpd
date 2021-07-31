@@ -33,7 +33,7 @@ bool LdpCommonHelloParamsTlvValue::requestTargeted() const {
     return _requestTargeted;
 }
 
-ssize_t LdpCommonHelloParamsTlvValue::setHelloTime(uint16_t holdTime) {
+ssize_t LdpCommonHelloParamsTlvValue::setHoldTime(uint16_t holdTime) {
     _holdTime = holdTime;
 
     return sizeof(_holdTime);
