@@ -4,7 +4,7 @@
 
 namespace ldpd {
 
-Netlink::Netlink() {
+Netlink::Netlink() : _saved() {
     _fd = -1;
 
     memset(&_local, 0, sizeof(struct sockaddr_nl));
@@ -17,6 +17,12 @@ Netlink::Netlink() {
 }
 
 Netlink::~Netlink() {
+    for (struct nlmsghdr *msg : _saved) {
+        free(msg);
+    }
+
+    _saved.clear();
+
     close();
 }
 
@@ -168,9 +174,13 @@ int Netlink::getReply(unsigned int seq, int (*handler) (void *, const struct nlm
             continue;
         }
 
+        // todo: inspect saved msgs
+
         for (struct nlmsghdr *msg = (struct nlmsghdr *) buffer; NLMSG_OK(msg, res); msg = NLMSG_NEXT(msg, res)) {
-            if (msg->nlmsg_seq != seq) { // fixme: save them somewhere?
-                log_warn("ignored nl reply from kernel with seq %u\n", msg->nlmsg_seq);
+            if (msg->nlmsg_seq != seq) {
+                log_info("reply from kernel with seq %u != %u (us): saving for the others\n", msg->nlmsg_seq, seq);
+                struct nlmsghdr *saved = (struct nlmsghdr *) malloc(msg->nlmsg_len);
+                memcpy(saved, msg, msg->nlmsg_len);
                 continue;
             }
 

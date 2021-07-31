@@ -15,6 +15,15 @@
 
 namespace ldpd {
 
+extern "C" {
+
+    typedef struct nl_request {
+        struct nlmsghdr header;
+        struct rtgenmsg message;
+    } nl_request_t;
+
+}
+
 class Netlink {
 public:
     Netlink();
@@ -38,17 +47,9 @@ private:
     pid_t _pid;
     int _fd;
     struct sockaddr_nl _local;
+    std::vector<struct nlmsghdr *> _saved;
     
     unsigned int _seq;
 };
-
-extern "C" {
-
-    typedef struct nl_request {
-        struct nlmsghdr header;
-        struct rtgenmsg message;
-    } nl_request_t;
-
-}
 
 }
