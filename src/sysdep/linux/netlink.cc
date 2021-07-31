@@ -90,14 +90,14 @@ int Netlink::getInterfaces(std::vector<Interface> &to) {
  * @param to location to store retrieved routes.
  * @return int status. 0 on success, 1 on error.
  */
-int Netlink::getRoutes(std::vector<Ipv4Route> &to) {
+int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
     unsigned int this_seq = ++_seq;
 
     if (sendQuery(this_seq, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
         return 1;
     }
 
-    if (getReply(this_seq, Netlink::procressRouteResults, &to) != 0) {
+    if (getReply(this_seq, Netlink::procressIpv4RouteResults, &to) != 0) {
         return 1;
     }
 
@@ -227,7 +227,7 @@ int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) 
     return PROCESS_NEXT;
 }
 
-int Netlink::procressRouteResults(void *routes, const struct nlmsghdr *msg) {
+int Netlink::procressIpv4RouteResults(void *routes, const struct nlmsghdr *msg) {
     std::vector<Ipv4Route> *to = (std::vector<Ipv4Route> *) routes;
 
     switch(msg->nlmsg_type) {
@@ -236,7 +236,7 @@ int Netlink::procressRouteResults(void *routes, const struct nlmsghdr *msg) {
         }
         case RTM_NEWROUTE: {
             Ipv4Route r = Ipv4Route();
-            if (parseRoute(r, msg) == PARSE_OK) {
+            if (parseIpv4Route(r, msg) == PARSE_OK) {
                 to->push_back(r);
             }
             
@@ -282,7 +282,7 @@ int Netlink::parseInterface(Interface &dst, const struct nlmsghdr *src) {
     return 0;
 }
 
-int Netlink::parseRoute(Ipv4Route &dst, const struct nlmsghdr *src) {
+int Netlink::parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWROUTE) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
         return PARSE_SKIP;

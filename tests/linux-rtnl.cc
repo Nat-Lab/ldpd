@@ -20,7 +20,7 @@ int main() {
 
     std::vector<ldpd::Ipv4Route> rts = std::vector<ldpd::Ipv4Route>();
 
-    if (nl.getRoutes(rts)) {
+    if (nl.getIpv4Routes(rts)) {
         return 1;
     }
 
