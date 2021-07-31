@@ -41,16 +41,19 @@ public:
 
     int getInterfaces(std::vector<Interface> &to);
     int getIpv4Routes(std::vector<Ipv4Route> &to);
+    int getMplsRoutes(std::vector<MplsRoute> &to);
 
     static int parseInterface(Interface &dst, const struct nlmsghdr *src);
     static int parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src);
+    static int parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src);
 
 private:
-    ssize_t sendQuery(unsigned int seq, unsigned short type, unsigned short flags) const;
+    ssize_t sendQuery(unsigned int seq, unsigned char af, unsigned short type, unsigned short flags) const;
     int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data) const;
 
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);
     static int procressIpv4RouteResults(void *routes, const struct nlmsghdr *);
+    static int procressMplsRouteResults(void *routes, const struct nlmsghdr *);
 
     pid_t _pid;
     int _fd;

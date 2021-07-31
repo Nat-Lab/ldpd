@@ -73,7 +73,7 @@ int Netlink::close() {
 int Netlink::getInterfaces(std::vector<Interface> &to) {
     unsigned int this_seq = ++_seq;
 
-    if (sendQuery(this_seq, RTM_GETLINK, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (sendQuery(this_seq, AF_INET, RTM_GETLINK, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
         return 1;
     }
 
@@ -93,7 +93,7 @@ int Netlink::getInterfaces(std::vector<Interface> &to) {
 int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
     unsigned int this_seq = ++_seq;
 
-    if (sendQuery(this_seq, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (sendQuery(this_seq, AF_INET, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
         return 1;
     }
 
@@ -113,7 +113,7 @@ int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
  * @param flags flags.
  * @return ssize_t ret val of sendmsg.
  */
-ssize_t Netlink::sendQuery(unsigned int seq, unsigned short type, unsigned short flags) const {
+ssize_t Netlink::sendQuery(unsigned int seq, unsigned char af, unsigned short type, unsigned short flags) const {
     struct sockaddr_nl kernel;
     struct msghdr nl_msg;
     struct iovec io;
@@ -133,7 +133,7 @@ ssize_t Netlink::sendQuery(unsigned int seq, unsigned short type, unsigned short
     request.header.nlmsg_seq = seq;
 
     // will deal with v4 only for now.
-    request.message.rtgen_family = AF_INET;
+    request.message.rtgen_family = af;
 
     io.iov_base = &request;
     io.iov_len = sizeof(nl_request);
