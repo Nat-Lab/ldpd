@@ -226,6 +226,10 @@ LdpTlvValue* LdpRawTlv::getParsedValue() const {
             val = new LdpConfigSeqNumTlvValue();
             break;
         }
+        case LDP_TLVTYPE_COMMON_SESSION: {
+            val = new LdpCommonSessionParamsTlvValue();
+            break;
+        }
         default:
             log_fatal("unknow tlv type (0x%.4x)\n", type);
             return nullptr;
