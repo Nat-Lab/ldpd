@@ -1,6 +1,7 @@
 #include "sysdep/linux/netlink.hh"
 #include <errno.h>
 #include <arpa/inet.h>
+#include <linux/mpls_iptunnel.h>
 
 namespace ldpd {
 
@@ -89,7 +90,7 @@ int Netlink::getInterfaces(std::vector<Interface> &to) {
  * @param to location to store retrieved routes.
  * @return int status. 0 on success, 1 on error.
  */
-int Netlink::getRoutes(std::vector<Route> &to) {
+int Netlink::getRoutes(std::vector<Ipv4Route> &to) {
     unsigned int this_seq = ++_seq;
 
     if (sendQuery(this_seq, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
@@ -227,14 +228,14 @@ int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) 
 }
 
 int Netlink::procressRouteResults(void *routes, const struct nlmsghdr *msg) {
-    std::vector<Route> *to = (std::vector<Route> *) routes;
+    std::vector<Ipv4Route> *to = (std::vector<Ipv4Route> *) routes;
 
     switch(msg->nlmsg_type) {
         case NLMSG_DONE: {
             return PROCESS_END;
         }
         case RTM_NEWROUTE: {
-            Route r = Route();
+            Ipv4Route r = Ipv4Route();
             if (parseRoute(r, msg) == PARSE_OK) {
                 to->push_back(r);
             }
@@ -281,7 +282,7 @@ int Netlink::parseInterface(Interface &dst, const struct nlmsghdr *src) {
     return 0;
 }
 
-int Netlink::parseRoute(Route &dst, const struct nlmsghdr *src) {
+int Netlink::parseRoute(Ipv4Route &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWROUTE) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
         return PARSE_SKIP;
@@ -289,18 +290,7 @@ int Netlink::parseRoute(Route &dst, const struct nlmsghdr *src) {
 
     const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(src);
 
-    if (rt->rtm_type != RTN_UNICAST) {
-        log_debug("ignored a non-unicast route.\n");
-        return PARSE_SKIP;
-    }
-
-    if (rt->rtm_family != AF_INET) {
-        log_debug("ignored a non-inet route with family %u\n", rt->rtm_family);
-        return PARSE_SKIP;
-    }
-
-    if (rt->rtm_table != RT_TABLE_MAIN) {
-        log_debug("ignored a route not in main table.\n");
+    if (rt->rtm_type != RTN_UNICAST || rt->rtm_table != RT_TABLE_MAIN) {
         return PARSE_SKIP;
     }
 
@@ -310,6 +300,7 @@ int Netlink::parseRoute(Route &dst, const struct nlmsghdr *src) {
     dst.src_len = rt->rtm_src_len;
     dst.mpls_encap = false;
     dst.mpls_stack = std::vector<uint32_t>();
+    dst.mpls_ttl = 255;
 
     size_t sz = RTM_PAYLOAD(src);
 
@@ -338,6 +329,14 @@ int Netlink::parseRoute(Route &dst, const struct nlmsghdr *src) {
                 encap_attr = attr;
                 break;
             }
+            case RTA_OIF: {
+                dst.oif = *(uint8_t *) RTA_DATA(attr);
+                break;
+            }
+            case RTA_IIF: {
+                dst.iif = *(uint8_t *) RTA_DATA(attr);
+                break;
+            }
         }
     }
 
@@ -349,13 +348,29 @@ int Netlink::parseRoute(Route &dst, const struct nlmsghdr *src) {
 
         size_t len = RTA_PAYLOAD(encap_attr);
 
-        const uint32_t *ptr = (const uint32_t *) RTA_DATA(encap_attr);
+        for (const struct rtattr *mpls_attr = (const struct rtattr *) RTA_DATA(encap_attr); RTA_OK(mpls_attr, len); mpls_attr = RTA_NEXT(mpls_attr, len)) {
+            switch(mpls_attr->rta_type) {
+                case MPLS_IPTUNNEL_DST: {
+                    size_t dst_len = RTA_PAYLOAD(mpls_attr);
+                    const uint32_t *ptr = (const uint32_t *) RTA_DATA(mpls_attr);
 
-        log_debug("1st as uint32: %u\n", ptr[0]); // what is this?
+                    if (dst_len % sizeof(uint32_t) != 0) {
+                        log_error("mpls lbl data %% sizeof(uint32_t) != 0, what?\n");
+                        return PARSE_SKIP;
+                    }
 
-        for (size_t i = 1; i < len/sizeof(uint32_t); ++i) {
-            dst.mpls_stack.push_back(ntohl(ptr[i]) >> 12);
+                    for (size_t i = 0; i < dst_len/sizeof(uint32_t); ++i) {
+                        dst.mpls_stack.push_back(ntohl(ptr[i]) >> 12);
+                    }
+                    break;
+                }
+                case MPLS_IPTUNNEL_TTL: {
+                    dst.mpls_ttl = *(uint8_t *) RTA_DATA(mpls_attr);
+                    break;
+                }
+            }
         }
+
     }
 
     return PARSE_OK;

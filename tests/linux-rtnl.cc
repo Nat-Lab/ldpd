@@ -18,19 +18,26 @@ int main() {
         printf("interface %d: %s\n", iface.id, iface.ifname.c_str());
     }
 
-    std::vector<ldpd::Route> rts = std::vector<ldpd::Route>();
+    std::vector<ldpd::Ipv4Route> rts = std::vector<ldpd::Ipv4Route>();
 
     if (nl.getRoutes(rts)) {
         return 1;
     }
 
-    for (const ldpd::Route &rt : rts) {
+    printf("\n");
+
+    for (const ldpd::Ipv4Route &rt : rts) {
         printf("route src: %s/%u\n", inet_ntoa(*(in_addr *) &rt.src), rt.src_len);
         printf("route dst: %s/%u\n", inet_ntoa(*(in_addr *) &rt.dst), rt.dst_len);
         printf("route gw: %s\n", inet_ntoa(*(in_addr *) &rt.gw));
+        printf("route oif: %d, iif: %d\n", rt.oif, rt.iif);
 
-        for (const uint32_t &lbl : rt.mpls_stack) {
-            printf("mpls stack: %u\n", lbl);
+        if (rt.mpls_encap) {
+            for (const uint32_t &lbl : rt.mpls_stack) {
+                printf("mpls stack: %u\n", lbl);
+            }
+
+            printf("mpls ttl: %u\n", rt.mpls_ttl);
         }
 
         printf("\n");

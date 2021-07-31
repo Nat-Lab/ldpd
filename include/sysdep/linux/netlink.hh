@@ -40,10 +40,10 @@ public:
     int close();
 
     int getInterfaces(std::vector<Interface> &to);
-    int getRoutes(std::vector<Route> &to);
+    int getRoutes(std::vector<Ipv4Route> &to);
 
     static int parseInterface(Interface &dst, const struct nlmsghdr *src);
-    static int parseRoute(Route &dst, const struct nlmsghdr *src);
+    static int parseRoute(Ipv4Route &dst, const struct nlmsghdr *src);
 
 private:
     ssize_t sendQuery(unsigned int seq, unsigned short type, unsigned short flags) const;

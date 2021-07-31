@@ -5,12 +5,13 @@
 
 namespace ldpd {
 
-struct Route {
-    // src & dst, in network byte order
-    uint32_t src, dst;
+enum RouteType {
+    Generic, Connected
+};
 
-    // src & dst length (/24, /32, etc.)
-    uint8_t src_len, dst_len;
+struct Route {
+    // in/out iface id.
+    int iif, oif;
 
     // gw, in network byte order
     uint32_t gw;
@@ -20,6 +21,22 @@ struct Route {
 
     // mpls labels stack, labels are in host byte order
     std::vector<uint32_t> mpls_stack;
+
+    // mpls ttl.
+    uint8_t mpls_ttl;
+};
+
+struct Ipv4Route : public Route {
+    // src & dst, in network byte order
+    uint32_t src, dst;
+
+    // src & dst length (/24, /32, etc.)
+    uint8_t src_len, dst_len;
+};
+
+struct MplsRoute : public Route {
+    // in label
+    uint32_t in_label;
 };
 
 } 
