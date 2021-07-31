@@ -128,8 +128,22 @@ ldpd::LdpRawTlv* parse_and_writeback_tlv(const ldpd::LdpRawTlv *parsed_raw_tlv) 
             printf("====== val type is common hello. hold-t: %lu, T: %d, R: %d.\n", casted->getHoldTime(), casted->targeted(), casted->requestTargeted());
 
             ldpd::LdpCommonHelloParamsTlvValue *writeback = new ldpd::LdpCommonHelloParamsTlvValue();
+            writeback->setHoldTime(casted->getHoldTime());
             writeback->setRequestTargeted(casted->requestTargeted());
             writeback->setTargeted(casted->targeted());
+
+            writeback_tlv->setValue(writeback);
+            delete writeback;
+
+            break;
+        }
+        case LDP_TLVTYPE_IPV4_TRANSPORT: {
+            ldpd::LdpIpv4TransportAddressTlvValue *casted = (ldpd::LdpIpv4TransportAddressTlvValue *) parsed_val;
+
+            printf("====== val type is v4-t-addr. addr: %s.\n", casted->getAddressString());
+
+            ldpd::LdpIpv4TransportAddressTlvValue *writeback = new ldpd::LdpIpv4TransportAddressTlvValue();
+            writeback->setAddress(casted->getAddress());
 
             writeback_tlv->setValue(writeback);
             delete writeback;
@@ -207,6 +221,7 @@ int parse_and_writeback(const uint8_t *buffer, size_t len) {
         hex_dump(buffer,  writeback_pdu.length());
         printf("==========\n");
         hex_dump(wb_buffer,  writeback_pdu.length());
+        return 1;
     }
 
     free(wb_buffer);
