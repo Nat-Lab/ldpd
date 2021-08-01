@@ -47,11 +47,11 @@ public:
             NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL));
     }
 
-    template <typename T> int deleteRoute(const T &route, bool replace = false) {
+    template <typename T> int deleteRoute(const T &route) {
         return sendRouteMessage(
             (const Route *) &route,
             RTM_DELROUTE,
-            NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL));
+            NLM_F_REQUEST | NLM_F_ACK);
     }
 
 private:
