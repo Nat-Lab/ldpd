@@ -146,36 +146,9 @@ int Netlink::addRoute(const MplsRoute &route, bool replace) {
 
     RtAttr attrs = RtAttr();
 
-    if (route.mpls_encap && route.mpls_stack.size() > 0) {
-        size_t stack_val_sz = sizeof(uint32_t) * route.mpls_stack.size();
-
-        uint32_t *stack_buf = (uint32_t *) malloc(stack_val_sz);
-
-        int idx = 0;
-        for (const uint32_t &label : route.mpls_stack) {
-            stack_buf[idx++] = htonl(label << 12);
-        }
-
-        stack_buf[idx - 1] |= htonl(0x100);
-
-        attrs.addRawAttribute(RTA_NEWDST, (uint8_t *) stack_buf, stack_val_sz);
-
-        free(stack_buf);
+    if (buildRtAttr(route, attrs) < 0){
+        return 1;
     }
-
-    attrs.addAttribute(RTA_OIF, route.oif);
-
-    uint32_t lbl_val = htonl(route.in_label << 12 | 0x100);
-    attrs.addAttribute(RTA_DST, lbl_val);
-
-    size_t via_val_sz = sizeof(struct rtvia) + sizeof(uint32_t);
-    uint8_t via_buf[sizeof(struct rtvia) + sizeof(uint32_t)];
-
-    struct rtvia *via = (struct rtvia *) via_buf;
-    via->rtvia_family = AF_INET;
-    memcpy(via_buf + sizeof(struct rtvia), &(route.gw), sizeof(uint32_t));
-
-    attrs.addRawAttribute(RTA_VIA, via_buf, via_val_sz);
 
     size_t buffer_left = sizeof(buffer) - sizeof(struct nlmsghdr) - sizeof(struct rtmsg);
     
@@ -224,41 +197,8 @@ int Netlink::addRoute(const Ipv4Route &route, bool replace) {
 
     RtAttr attrs = RtAttr();
 
-    attrs.addAttribute(RTA_OIF, route.oif);
-    attrs.addAttribute(RTA_DST, route.dst);
-    attrs.addAttribute(RTA_GATEWAY, route.gw);
-
-    if (route.mpls_encap && route.mpls_stack.size() > 0) {
-        short type = LWTUNNEL_ENCAP_MPLS;
-        attrs.addAttribute(RTA_ENCAP_TYPE, type);
-
-        RtAttr nested = RtAttr();
-
-        if (route.mpls_ttl == 0) {
-            log_error("bad mpls ttl: cannot be 0.\n");
-            return 1;
-        }
-
-        if (route.mpls_ttl != 255) {
-            nested.addAttribute(MPLS_IPTUNNEL_TTL, route.mpls_ttl);
-        }
-
-        size_t stack_val_sz = sizeof(uint32_t) * route.mpls_stack.size();
-
-        uint32_t *stack_buf = (uint32_t *) malloc(stack_val_sz);
-
-        int idx = 0;
-        for (const uint32_t &label : route.mpls_stack) {
-            stack_buf[idx++] = htonl(label << 12);
-        }
-
-        stack_buf[idx - 1] |= htonl(0x100);
-
-        nested.addRawAttribute(MPLS_IPTUNNEL_DST, (uint8_t *) stack_buf, stack_val_sz);
-
-        free(stack_buf);
-
-        attrs.addNestedAttribute(RTA_ENCAP, nested);
+    if (buildRtAttr(route, attrs) < 0) {
+        return 1;
     }
 
     size_t buffer_left = sizeof(buffer) - sizeof(struct nlmsghdr) - sizeof(struct rtmsg);
@@ -652,6 +592,82 @@ int Netlink::commonAckHandler(void *caller, const struct nlmsghdr *msg) {
     }
 
     return PROCESS_NEXT;
+}
+
+int Netlink::buildRtAttr(const Ipv4Route &route, RtAttr &attrs) {
+    attrs.addAttribute(RTA_OIF, route.oif);
+    attrs.addAttribute(RTA_DST, route.dst);
+    attrs.addAttribute(RTA_GATEWAY, route.gw);
+
+    if (route.mpls_encap && route.mpls_stack.size() > 0) {
+        short type = LWTUNNEL_ENCAP_MPLS;
+        attrs.addAttribute(RTA_ENCAP_TYPE, type);
+
+        RtAttr nested = RtAttr();
+
+        if (route.mpls_ttl == 0) {
+            log_error("bad mpls ttl: cannot be 0.\n");
+            return 1;
+        }
+
+        if (route.mpls_ttl != 255) {
+            nested.addAttribute(MPLS_IPTUNNEL_TTL, route.mpls_ttl);
+        }
+
+        size_t stack_val_sz = sizeof(uint32_t) * route.mpls_stack.size();
+
+        uint32_t *stack_buf = (uint32_t *) malloc(stack_val_sz);
+
+        int idx = 0;
+        for (const uint32_t &label : route.mpls_stack) {
+            stack_buf[idx++] = htonl(label << 12);
+        }
+
+        stack_buf[idx - 1] |= htonl(0x100);
+
+        nested.addRawAttribute(MPLS_IPTUNNEL_DST, (uint8_t *) stack_buf, stack_val_sz);
+
+        free(stack_buf);
+
+        attrs.addNestedAttribute(RTA_ENCAP, nested);
+    }
+
+    return 0;
+}
+
+int Netlink::buildRtAttr(const MplsRoute &route, RtAttr &attrs) {
+    if (route.mpls_encap && route.mpls_stack.size() > 0) {
+        size_t stack_val_sz = sizeof(uint32_t) * route.mpls_stack.size();
+
+        uint32_t *stack_buf = (uint32_t *) malloc(stack_val_sz);
+
+        int idx = 0;
+        for (const uint32_t &label : route.mpls_stack) {
+            stack_buf[idx++] = htonl(label << 12);
+        }
+
+        stack_buf[idx - 1] |= htonl(0x100);
+
+        attrs.addRawAttribute(RTA_NEWDST, (uint8_t *) stack_buf, stack_val_sz);
+
+        free(stack_buf);
+    }
+
+    attrs.addAttribute(RTA_OIF, route.oif);
+
+    uint32_t lbl_val = htonl(route.in_label << 12 | 0x100);
+    attrs.addAttribute(RTA_DST, lbl_val);
+
+    size_t via_val_sz = sizeof(struct rtvia) + sizeof(uint32_t);
+    uint8_t via_buf[sizeof(struct rtvia) + sizeof(uint32_t)];
+
+    struct rtvia *via = (struct rtvia *) via_buf;
+    via->rtvia_family = AF_INET;
+    memcpy(via_buf + sizeof(struct rtvia), &(route.gw), sizeof(uint32_t));
+
+    attrs.addRawAttribute(RTA_VIA, via_buf, via_val_sz);
+
+    return 0;
 }
 
 }

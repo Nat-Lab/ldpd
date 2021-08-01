@@ -1,6 +1,7 @@
 #ifndef LDP_NETLINK_H
 #define LDP_NETLINK_H
 #include "utils/log.hh"
+#include "sysdep/linux/rtattr.hh"
 #include "abstraction/interface.hh"
 #include "abstraction/route.hh"
 
@@ -59,6 +60,9 @@ private:
     static int procressIpv4RouteResults(void *routes, const struct nlmsghdr *);
     static int procressMplsRouteResults(void *routes, const struct nlmsghdr *);
     static int commonAckHandler(void *unused, const struct nlmsghdr *msg);
+
+    static int buildRtAttr(const Ipv4Route &route, RtAttr &attrs);
+    static int buildRtAttr(const MplsRoute &route, RtAttr &attrs);
 
     pid_t _pid;
     int _fd;
