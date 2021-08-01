@@ -42,7 +42,7 @@ public:
 
     template <typename T> int addRoute(const T &route, bool replace = false) {
         return sendRouteMessage(
-            route,
+            (const Route *) &route,
             RTM_NEWROUTE,
             NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL));
     }
@@ -52,8 +52,7 @@ public:
 
 private:
     int sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags);
-    int sendRouteMessage(const Ipv4Route &route, unsigned short type, unsigned short flags);
-    int sendRouteMessage(const MplsRoute &route, unsigned short type, unsigned short flags);
+    int sendRouteMessage(const Route *route, unsigned short type, unsigned short flags);
 
     int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data);
 

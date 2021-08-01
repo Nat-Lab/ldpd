@@ -123,7 +123,7 @@ int Netlink::getRoutes(std::vector<MplsRoute> &to) {
     return 0;
 }
 
-int Netlink::sendRouteMessage(const MplsRoute &route, unsigned short type, unsigned short flags) {
+int Netlink::sendRouteMessage(const Route *route, unsigned short type, unsigned short flags) {
     unsigned int seq = ++_seq;
 
     uint8_t buffer[8192];
@@ -137,67 +137,31 @@ int Netlink::sendRouteMessage(const MplsRoute &route, unsigned short type, unsig
     struct rtmsg *rtmsg = (struct rtmsg *) ptr;
     ptr += sizeof(struct rtmsg);
 
-    rtmsg->rtm_family = AF_MPLS;
     rtmsg->rtm_table = RT_TABLE_MAIN;
     rtmsg->rtm_protocol = RTPROT_STATIC;
     rtmsg->rtm_scope = RT_SCOPE_UNIVERSE;
     rtmsg->rtm_type = RTN_UNICAST;
-    rtmsg->rtm_dst_len = 20;
 
     RtAttr attrs = RtAttr();
 
-    if (buildRtAttr(route, attrs) < 0){
-        return 1;
-    }
+    if (route->getType() == RouteType::Ipv4) {
+        const Ipv4Route *r = (const Ipv4Route *) route;
+        rtmsg->rtm_dst_len = r->dst_len;
+        rtmsg->rtm_family = AF_INET;
 
-    size_t buffer_left = sizeof(buffer) - sizeof(struct nlmsghdr) - sizeof(struct rtmsg);
-    
-    ssize_t attrs_len = attrs.write(ptr, buffer_left);
+        if (buildRtAttr(*r, attrs) < 0) {
+            return 1;
+        }
+    } else if (route->getType() == RouteType::Mpls) {
+        const MplsRoute *r = (const MplsRoute *) route;
+        rtmsg->rtm_dst_len = 20;
+        rtmsg->rtm_family = AF_MPLS;
 
-    if (attrs_len < 0) {
-        return 1;
-    }
-
-    size_t msglen = (size_t) attrs_len + sizeof(struct rtmsg);
-
-    msghdr->nlmsg_len = NLMSG_LENGTH(msglen);
-    msghdr->nlmsg_pid = _pid;
-    msghdr->nlmsg_seq = seq;
-    msghdr->nlmsg_flags = flags;
-    msghdr->nlmsg_type = type;
-
-    if (sendMessage(msghdr) < 0) {
-        log_error("sendMessage(): %s\n", strerror(errno));
-        return -1;
-    }
-
-    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) "srm-mpls");
-}
-
-int Netlink::sendRouteMessage(const Ipv4Route &route, unsigned short type, unsigned short flags) {
-    unsigned int seq = ++_seq;
-
-    uint8_t buffer[8192];
-    uint8_t *ptr = buffer;
-
-    memset(buffer, 0, 8192);
-
-    struct nlmsghdr *msghdr = (struct nlmsghdr *) ptr;
-    ptr += sizeof(struct nlmsghdr);
-
-    struct rtmsg *rtmsg = (struct rtmsg *) ptr;
-    ptr += sizeof(struct rtmsg);
-
-    rtmsg->rtm_family = AF_INET;
-    rtmsg->rtm_table = RT_TABLE_MAIN;
-    rtmsg->rtm_protocol = RTPROT_STATIC;
-    rtmsg->rtm_scope = RT_SCOPE_UNIVERSE;
-    rtmsg->rtm_type = RTN_UNICAST;
-    rtmsg->rtm_dst_len = route.dst_len;
-
-    RtAttr attrs = RtAttr();
-
-    if (buildRtAttr(route, attrs) < 0) {
+        if (buildRtAttr(*r, attrs) < 0) {
+            return 1;
+        }
+    } else {
+        log_error("unknow route type %d.\n", route->getType());
         return 1;
     }
 
@@ -222,7 +186,7 @@ int Netlink::sendRouteMessage(const Ipv4Route &route, unsigned short type, unsig
         return 1;
     }
 
-    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) "srm-ipv4");
+    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) __FUNCTION__);
 }
 
 int Netlink::sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags) {
