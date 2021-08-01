@@ -254,10 +254,7 @@ int Netlink::addMplsRoute(const MplsRoute &route, bool replace) {
         return -1;
     }
 
-    // for debug
-    getReply((unsigned int) seq, Netlink::dumpMessage, nullptr);
-
-    return seq;
+    return getReply((unsigned int) seq, Netlink::commonAckHandler, (char *) __FUNCTION__);
 }
 
 int Netlink::sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags) {
@@ -366,8 +363,18 @@ int Netlink::getReply(unsigned int seq, int (*handler) (void *, const struct nlm
                 continue;
             }
 
-            if (handler(data, msg) == PROCESS_END) {
+            int rslt = handler(data, msg);
+
+            if (rslt == PROCESS_END) {
                 end = true;
+            }
+
+            if (rslt == PROCESS_NEXT) {
+                continue;
+            }
+
+            if (rslt == PROCESS_ERR) {
+                return 1;
             }
         }
 
@@ -602,13 +609,22 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
 
 }
 
-int Netlink::dumpMessage(void *unused, const struct nlmsghdr *msg) {
+int Netlink::commonAckHandler(void *caller, const struct nlmsghdr *msg) {
     if (msg->nlmsg_type == NLMSG_DONE) {
-        log_debug("done.\n");
         return PROCESS_END;
     }
 
-    log_debug("got msg type %u.\n", msg->nlmsg_type);
+    if (msg->nlmsg_type == NLMSG_ERROR) {
+        const nlmsgerr *err = (const struct nlmsgerr *) NLMSG_DATA(msg);
+
+        if (err->error == 0) {
+            return PROCESS_END;
+        }
+
+        log_error("rtnl reported error: %s (requested by %s)\n", strerror(-err->error), (const char *) caller);
+
+        return PROCESS_ERR;
+    }
 
     return PROCESS_NEXT;
 }

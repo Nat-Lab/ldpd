@@ -80,7 +80,9 @@ int main() {
     mr.mpls_stack.push_back(810);
     mr.mpls_stack.push_back(853);
 
-    nl.addMplsRoute(mr);
+    if (nl.addMplsRoute(mr) == 0) {
+        printf("add-mpls-route ok.\n");
+    }
 
     nl.close();
 

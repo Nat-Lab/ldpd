@@ -83,7 +83,7 @@ private:
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);
     static int procressIpv4RouteResults(void *routes, const struct nlmsghdr *);
     static int procressMplsRouteResults(void *routes, const struct nlmsghdr *);
-    static int dumpMessage(void *unused, const struct nlmsghdr *msg);
+    static int commonAckHandler(void *unused, const struct nlmsghdr *msg);
 
     pid_t _pid;
     int _fd;
