@@ -43,6 +43,12 @@ public:
     int getIpv4Routes(std::vector<Ipv4Route> &to);
     int getMplsRoutes(std::vector<MplsRoute> &to);
 
+    int addIpv4Route(const Ipv4Route &route);
+    int addMplsRoute(const MplsRoute &route);
+
+    int deleteIpv4Route(const Ipv4Route &route);
+    int deleteMplsRoute(const Ipv4Route &route);
+
     static int parseInterface(Interface &dst, const struct nlmsghdr *src);
     static int parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src);
     static int parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src);
