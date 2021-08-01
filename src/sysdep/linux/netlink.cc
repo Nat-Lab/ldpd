@@ -218,8 +218,6 @@ int Netlink::addIpv4Route(const Ipv4Route &route, bool replace) {
     struct nlmsghdr *msghdr = (struct nlmsghdr *) ptr;
     ptr += sizeof(struct nlmsghdr);
 
-    uint8_t *msg_start = ptr;
-
     struct rtmsg *rtmsg = (struct rtmsg *) ptr;
     ptr += sizeof(struct rtmsg);
 
@@ -230,104 +228,54 @@ int Netlink::addIpv4Route(const Ipv4Route &route, bool replace) {
     rtmsg->rtm_type = RTN_UNICAST;
     rtmsg->rtm_dst_len = route.dst_len;
 
-    // add oif attr
-    struct rtattr *oif_attr_hdr = (struct rtattr *) ptr;
-    ptr += sizeof(struct rtattr);
+    RtAttr attrs = RtAttr();
 
-    oif_attr_hdr->rta_type = RTA_OIF;
-    oif_attr_hdr->rta_len = RTA_LENGTH(sizeof(int));
+    attrs.addAttribute(RTA_OIF, route.oif);
+    attrs.addAttribute(RTA_DST, route.dst);
+    attrs.addAttribute(RTA_GATEWAY, route.gw);
 
-    memcpy(ptr, &(route.oif), sizeof(int));
-    ptr += sizeof(int);
+    if (route.mpls_encap && route.mpls_stack.size() > 0) {
+        short type = LWTUNNEL_ENCAP_MPLS;
+        attrs.addAttribute(RTA_ENCAP_TYPE, type);
 
-    // add dst attr
-    struct rtattr *dst_attr_hdr = (struct rtattr *) ptr;
-    ptr += sizeof(struct rtattr);
+        RtAttr nested = RtAttr();
 
-    dst_attr_hdr->rta_type = RTA_DST;
-    dst_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint32_t));
-
-    memcpy(ptr, &(route.dst), sizeof(uint32_t));
-    ptr += sizeof(uint32_t);
-
-    // add gw attr
-    struct rtattr *gw_attr_hdr = (struct rtattr *) ptr;
-    ptr += sizeof(struct rtattr);
-
-    gw_attr_hdr->rta_type = RTA_GATEWAY;
-    gw_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint32_t));
-
-    memcpy(ptr, &(route.gw), sizeof(uint32_t));
-    ptr += sizeof(uint32_t);
-
-    if (route.mpls_encap) {
-        uint8_t *backup = ptr;
-
-        // add rta_encap attr
-        struct rtattr *encap_attr_hdr = (struct rtattr *) ptr;
-        ptr += sizeof(struct rtattr);
-
-        encap_attr_hdr->rta_type = RTA_ENCAP;
-
-        {
-            uint8_t *nested_attr_start = ptr;
-
-            if (route.mpls_ttl != 255) {
-                // nested attr: mpls_ttl
-                struct rtattr *nested_mpls_ttl_attr_hdr = (struct rtattr *) ptr;
-                ptr += sizeof(struct rtattr);
-
-                nested_mpls_ttl_attr_hdr->rta_type = MPLS_IPTUNNEL_TTL;
-                nested_mpls_ttl_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint8_t));
-                
-                memcpy(ptr, &(route.mpls_ttl), sizeof(uint8_t));
-                ptr += sizeof(uint8_t);
-            }
-
-            // nested attr: mpls_tunnel_dst
-            struct rtattr *nested_mpls_dst_attr_hdr = (struct rtattr *) ptr;
-            ptr += sizeof(struct rtattr);
-
-            nested_mpls_dst_attr_hdr->rta_type = MPLS_IPTUNNEL_DST;
-            nested_mpls_dst_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint32_t) * route.mpls_stack.size());
-
-            uint32_t *last_lbl = nullptr;
-
-            for (const uint32_t &label : route.mpls_stack) {
-                uint32_t lbl_val = htonl(label << 12);
-                memcpy(ptr, &lbl_val, sizeof(uint32_t));
-                last_lbl = (uint32_t *) ptr;
-                ptr += sizeof(uint32_t);
-            }
-
-            if (last_lbl == nullptr) {
-                log_warn("no stack set but mpls_encap = true. do not do this.\n");
-                ptr = backup;
-                goto send;
-            } else {
-                *last_lbl = *last_lbl | htonl(0x100);
-            }
-
-            encap_attr_hdr->rta_len = RTA_LENGTH(ptr - nested_attr_start);
+        if (route.mpls_ttl == 0) {
+            log_error("bad mpls ttl: cannot be 0.\n");
+            return 1;
         }
 
-        // add rta_encap_type attr
-        struct rtattr *encap_type_attr_hdr = (struct rtattr *) ptr;
-        ptr += sizeof(struct rtattr);
+        if (route.mpls_ttl != 255) {
+            nested.addAttribute(MPLS_IPTUNNEL_TTL, route.mpls_ttl);
+        }
 
-        encap_type_attr_hdr->rta_type = RTA_ENCAP_TYPE;
-        encap_type_attr_hdr->rta_len = RTA_LENGTH(sizeof(short));
+        size_t stack_val_sz = sizeof(uint32_t) * route.mpls_stack.size();
 
-        short type = LWTUNNEL_ENCAP_MPLS;
+        uint32_t *stack_buf = (uint32_t *) malloc(stack_val_sz);
 
-        memcpy(ptr, &(type), sizeof(short));
-        ptr += sizeof(short);
-        
+        int idx = 0;
+        for (const uint32_t &label : route.mpls_stack) {
+            stack_buf[idx++] = htonl(label << 12);
+        }
+
+        stack_buf[idx - 1] |= htonl(0x100);
+
+        nested.addRawAttribute(MPLS_IPTUNNEL_DST, (uint8_t *) stack_buf, stack_val_sz);
+
+        free(stack_buf);
+
+        attrs.addNestedAttribute(RTA_ENCAP, nested);
     }
 
-send:
+    size_t buffer_left = sizeof(buffer) - sizeof(struct nlmsghdr) - sizeof(struct rtmsg);
+    
+    ssize_t attrs_len = attrs.write(ptr, buffer_left);
 
-    size_t msglen = ptr - msg_start;
+    if (attrs_len < 0) {
+        return 1;
+    }
+
+    size_t msglen = (size_t) attrs_len + sizeof(struct rtmsg);
 
     msghdr->nlmsg_len = NLMSG_LENGTH(msglen);
     msghdr->nlmsg_pid = _pid;
