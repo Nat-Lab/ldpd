@@ -427,50 +427,42 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
     dst.mpls_encap = false;
     dst.mpls_stack = std::vector<uint32_t>();
 
-    size_t sz = RTM_PAYLOAD(src);
+    RouteAttributes attrs = RouteAttributes(RTM_RTA(rt), RTM_PAYLOAD(src));
 
-    for (const struct rtattr *attr = RTM_RTA(rt); RTA_OK(attr, sz); attr = RTA_NEXT(attr, sz)) {
-        switch (attr->rta_type) {
-            case RTA_DST: {
-                dst.in_label = ntohl(*(uint32_t *) RTA_DATA(attr)) >> 12;
-                break;
-            }
-            case RTA_VIA: {
-                const struct rtvia *via = (const struct rtvia *) RTA_DATA(attr);
-                if (via->rtvia_family != AF_INET) {
-                    log_error("unsupported af: %u\n", via->rtvia_family);
-                    return PRASE_SKIP;
-                }
-                dst.gw = *(uint32_t *) via->rtvia_addr;
-                break;
-            }
-            case RTA_NEWDST: {
-                dst.mpls_encap = true;
+    if (!attrs.getAttributeValue(RTA_DST, dst.in_label)) { log_warn("ignored a route w/ no rta_dst.\n"); return PRASE_SKIP; }
 
-                size_t dst_len = RTA_PAYLOAD(attr);
-                const uint32_t *ptr = (const uint32_t *) RTA_DATA(attr);
+    const struct rtvia *via;
 
-                if (dst_len % sizeof(uint32_t) != 0) {
-                    log_error("mpls lbl data %% sizeof(uint32_t) != 0, what?\n");
-                    return PRASE_SKIP;
-                }
+    if (!attrs.getAttributePointer(RTA_VIA, via)) { log_warn("ignored a route w/ no rta_via.\n"); return PRASE_SKIP; }
 
-                for (size_t i = 0; i < dst_len/sizeof(uint32_t); ++i) {
-                    dst.mpls_stack.push_back(ntohl(ptr[i]) >> 12);
-                }
-                
-                break;
-            }
-            case RTA_OIF: {
-                dst.oif = *(uint8_t *) RTA_DATA(attr);
-                break;
-            }
-
-        }
+    if (via->rtvia_family != AF_INET) {
+        log_error("unsupported af: %u\n", via->rtvia_family);
+        return PRASE_SKIP;
     }
 
+    dst.gw = *(uint32_t *) via->rtvia_addr;   
+
+    const uint32_t *labels;
+
+    if (!attrs.getAttributePointer(RTA_NEWDST, labels)) {
+        return PRASE_OK;
+    }
+
+    dst.mpls_encap = true;
+
+    size_t lables_arr_len = RTA_PAYLOAD(attrs.getAttribute(RTA_NEWDST));
+
+    if (lables_arr_len % sizeof(uint32_t) != 0) {
+        log_error("mpls lbl arr %% sizeof(uint32_t) != 0, what?\n");
+        return PRASE_SKIP;
+    }
+
+    for (size_t i = 0; i < lables_arr_len/sizeof(uint32_t); ++i) {
+        dst.mpls_stack.push_back(ntohl(labels[i]) >> 12);
+    }
 
     return PRASE_OK;
+
 }
 
 }
