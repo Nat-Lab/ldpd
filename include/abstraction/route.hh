@@ -10,8 +10,8 @@ enum RouteType {
 };
 
 struct Route {
-    // in/out iface id.
-    int iif, oif;
+    // out iface id.
+    int oif;
 
     // gw, in network byte order
     uint32_t gw;
@@ -25,11 +25,11 @@ struct Route {
 };
 
 struct Ipv4Route : public Route {
-    // src & dst, in network byte order
-    uint32_t src, dst;
+    // dst net, in network byte order
+    uint32_t dst;
 
-    // src & dst length (/24, /32, etc.)
-    uint8_t src_len, dst_len;
+    // dst length (/24, /32, etc.)
+    uint8_t dst_len;
 
     // mpls ttl, if mpls_encap.
     uint8_t mpls_ttl;

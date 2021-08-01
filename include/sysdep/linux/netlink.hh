@@ -12,9 +12,11 @@
 #include <linux/lwtunnel.h>
 
 #include <vector>
+#include <map>
+#include <type_traits>
 
-#define PARSE_OK 0
-#define PARSE_SKIP 1
+#define PRASE_OK 0
+#define PRASE_SKIP 1
 
 #define PROCESS_NEXT 0
 #define PROCESS_END 1
@@ -30,6 +32,34 @@ extern "C" {
     } nl_request_t;
 
 }
+
+class RouteAttributes {
+public:
+    RouteAttributes(const struct rtattr *attr, size_t len);
+    ~RouteAttributes();
+
+    const struct rtattr* getAttribute(unsigned short type) const;
+    bool hasAttribute(unsigned short type) const;
+    
+    template <typename T> bool getAttributeValue(unsigned short type, T &val) const {
+        if (!hasAttribute(type)) {
+            return false;
+        }
+        val = *(T *) RTA_DATA(getAttribute(type));
+        return true;
+    }
+
+    template <typename T> bool getAttributePointer(unsigned short type, T* &val) const {
+        if (!hasAttribute(type)) {
+            return false;
+        }
+        val = (T *) RTA_DATA(getAttribute(type));
+        return true;
+    }
+
+private:
+    std::map<unsigned short, struct rtattr*> _attrs;
+};
 
 class Netlink {
 public:

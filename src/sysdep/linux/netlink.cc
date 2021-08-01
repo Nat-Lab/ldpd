@@ -5,6 +5,32 @@
 
 namespace ldpd {
 
+RouteAttributes::RouteAttributes(const struct rtattr *attr, size_t len) : _attrs() {
+    for (; RTA_OK(attr, len); attr = RTA_NEXT(attr, len)) {
+        struct rtattr *local_copy = (struct rtattr *) malloc(attr->rta_len);
+        memcpy(local_copy, attr, attr->rta_len);
+        _attrs[attr->rta_type] = local_copy;
+    }
+}
+
+RouteAttributes::~RouteAttributes() {
+    for (std::pair<const unsigned short, struct rtattr*> attr : _attrs) {
+        free(attr.second);
+    }
+}
+
+const struct rtattr* RouteAttributes::getAttribute(unsigned short type) const {
+    if (_attrs.count(type) == 0) {
+        return nullptr;
+    }
+
+    return _attrs.at(type);
+}
+
+bool RouteAttributes::hasAttribute(unsigned short type) const {
+    return _attrs.count(type);
+}
+
 Netlink::Netlink() : _saved() {
     _fd = -1;
 
@@ -225,7 +251,7 @@ int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) 
         }
         case RTM_NEWLINK: {
             Interface iface = Interface();
-            if (parseInterface(iface, msg) == PARSE_OK) {
+            if (parseInterface(iface, msg) == PRASE_OK) {
                 to->push_back(iface);
             }
 
@@ -249,7 +275,7 @@ int Netlink::procressIpv4RouteResults(void *routes, const struct nlmsghdr *msg) 
         }
         case RTM_NEWROUTE: {
             Ipv4Route r = Ipv4Route();
-            if (parseIpv4Route(r, msg) == PARSE_OK) {
+            if (parseIpv4Route(r, msg) == PRASE_OK) {
                 to->push_back(r);
             }
             
@@ -273,7 +299,7 @@ int Netlink::procressMplsRouteResults(void *routes, const struct nlmsghdr *msg) 
         }
         case RTM_NEWROUTE: {
             MplsRoute r = MplsRoute();
-            if (parseMplsRoute(r, msg) == PARSE_OK) {
+            if (parseMplsRoute(r, msg) == PRASE_OK) {
                 to->push_back(r);
             }
             
@@ -298,132 +324,104 @@ int Netlink::procressMplsRouteResults(void *routes, const struct nlmsghdr *msg) 
 int Netlink::parseInterface(Interface &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWLINK) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWLINK);
-        return 1;
+        return PRASE_SKIP;
     }
 
     const struct ifinfomsg *iface = (const struct ifinfomsg *) NLMSG_DATA(src);
 
     dst.id = iface->ifi_index;
 
-    size_t sz = RTM_PAYLOAD(src);
+    RouteAttributes attrs = RouteAttributes(IFLA_RTA(iface), RTM_PAYLOAD(src));
 
-    for (const struct rtattr *attr = IFLA_RTA(iface); RTA_OK(attr, sz); attr = RTA_NEXT(attr, sz)) {
-        switch (attr->rta_type) {
-            case IFLA_IFNAME: {
-                dst.ifname = std::string((const char *) RTA_DATA(attr));
-                break;
-            }
-        }
+    if (attrs.hasAttribute(IFLA_IFNAME)) {
+        dst.ifname = std::string((const char*) RTA_DATA(attrs.getAttribute(IFLA_IFNAME)));
+    } else {
+        log_error("no ifla_ifname attribute.\n");
+        return PRASE_SKIP;
     }
 
-    return 0;
+    return PRASE_OK;
 }
 
 int Netlink::parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWROUTE) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
-        return PARSE_SKIP;
+        return PRASE_SKIP;
     }
 
     const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(src);
 
     if (rt->rtm_type != RTN_UNICAST || rt->rtm_table != RT_TABLE_MAIN) {
-        return PARSE_SKIP;
+        return PRASE_SKIP;
     }
 
-    const struct rtattr* encap_attr = nullptr;
 
     dst.dst_len = rt->rtm_dst_len;
-    dst.src_len = rt->rtm_src_len;
     dst.mpls_encap = false;
     dst.mpls_stack = std::vector<uint32_t>();
     dst.mpls_ttl = 255;
 
-    size_t sz = RTM_PAYLOAD(src);
+    RouteAttributes attrs = RouteAttributes(RTM_RTA(rt), RTM_PAYLOAD(src));
 
-    for (const struct rtattr *attr = RTM_RTA(rt); RTA_OK(attr, sz); attr = RTA_NEXT(attr, sz)) {
-        switch (attr->rta_type) {
-            case RTA_SRC: {
-                dst.src = *(uint32_t *) RTA_DATA(attr);
-                break;
-            }
-            case RTA_DST: {
-                dst.dst = *(uint32_t *) RTA_DATA(attr);
-                break;
-            }
-            case RTA_GATEWAY: {
-                dst.gw = *(uint32_t *) RTA_DATA(attr);
-                break;
-            }
-            case RTA_ENCAP_TYPE: {
-                short type = *(short *) RTA_DATA(attr);
-                if (type == LWTUNNEL_ENCAP_MPLS) {
-                    dst.mpls_encap = true;
-                }
-                break;
-            }
-            case RTA_ENCAP: {
-                encap_attr = attr;
-                break;
-            }
-            case RTA_OIF: {
-                dst.oif = *(uint8_t *) RTA_DATA(attr);
-                break;
-            }
-            case RTA_IIF: {
-                dst.iif = *(uint8_t *) RTA_DATA(attr);
-                break;
-            }
-        }
+    if (!attrs.getAttributeValue(RTA_DST, dst.dst)) { log_warn("ignored a route w/ no rta_dst.\n"); return PRASE_SKIP; }
+    if (!attrs.getAttributeValue(RTA_OIF, dst.oif)) { log_warn("ignored a route w/ no rta_oif.\n"); return PRASE_SKIP; }
+    if (!attrs.getAttributeValue(RTA_GATEWAY, dst.gw)) { log_warn("ignored a route w/ no rta_gw.\n"); return PRASE_SKIP; }
+
+    short enctype;
+
+    if (!attrs.getAttributeValue(RTA_ENCAP_TYPE, enctype)) {
+        return PRASE_OK;
     }
 
-    if (dst.mpls_encap) {
-        if (encap_attr == nullptr) {
-            log_error("rta_encap_type == mpls, but no rta_encap found.\n");
-            return PARSE_SKIP;
-        }
-
-        size_t len = RTA_PAYLOAD(encap_attr);
-
-        for (const struct rtattr *mpls_attr = (const struct rtattr *) RTA_DATA(encap_attr); RTA_OK(mpls_attr, len); mpls_attr = RTA_NEXT(mpls_attr, len)) {
-            switch(mpls_attr->rta_type) {
-                case MPLS_IPTUNNEL_DST: {
-                    size_t dst_len = RTA_PAYLOAD(mpls_attr);
-                    const uint32_t *ptr = (const uint32_t *) RTA_DATA(mpls_attr);
-
-                    if (dst_len % sizeof(uint32_t) != 0) {
-                        log_error("mpls lbl data %% sizeof(uint32_t) != 0, what?\n");
-                        return PARSE_SKIP;
-                    }
-
-                    for (size_t i = 0; i < dst_len/sizeof(uint32_t); ++i) {
-                        dst.mpls_stack.push_back(ntohl(ptr[i]) >> 12);
-                    }
-
-                    break;
-                }
-                case MPLS_IPTUNNEL_TTL: {
-                    dst.mpls_ttl = *(uint8_t *) RTA_DATA(mpls_attr);
-                    break;
-                }
-            }
-        }
-
+    if (enctype != LWTUNNEL_ENCAP_MPLS) {
+        log_warn("unsupported enc %u, skipping route.\n", enctype);
+        return PRASE_SKIP;
     }
 
-    return PARSE_OK;
+    const struct rtattr* encap_attr_val = nullptr;
+
+    if (!attrs.getAttributePointer(RTA_ENCAP, encap_attr_val)) {
+        log_error("rta_encap_type == mpls, but no rta_encap found.\n");
+        return PRASE_SKIP;
+    }
+
+    dst.mpls_encap = true;
+
+    RouteAttributes mpls_info = RouteAttributes(encap_attr_val, encap_attr_val->rta_len);
+
+    const uint32_t *labels;
+
+    if (!mpls_info.getAttributePointer(MPLS_IPTUNNEL_DST, labels)) {
+        log_error("mpls_tun_dst not found in mpls encap rattr.\n");
+        return PRASE_SKIP;
+    }
+
+    size_t lables_arr_len = RTA_PAYLOAD(mpls_info.getAttribute(MPLS_IPTUNNEL_DST));
+
+    if (lables_arr_len % sizeof(uint32_t) != 0) {
+        log_error("mpls lbl arr %% sizeof(uint32_t) != 0, what?\n");
+        return PRASE_SKIP;
+    }
+
+    for (size_t i = 0; i < lables_arr_len/sizeof(uint32_t); ++i) {
+        dst.mpls_stack.push_back(ntohl(labels[i]) >> 12);
+    }
+
+    mpls_info.getAttributeValue(MPLS_IPTUNNEL_TTL, dst.mpls_ttl);
+
+    return PRASE_OK;
 }
 
 int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWROUTE) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
-        return PARSE_SKIP;
+        return PRASE_SKIP;
     }
 
     const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(src);
 
     if (rt->rtm_type != RTN_UNICAST || rt->rtm_table != RT_TABLE_MAIN) {
-        return PARSE_SKIP;
+        return PRASE_SKIP;
     }
 
     dst.mpls_encap = false;
@@ -441,7 +439,7 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
                 const struct rtvia *via = (const struct rtvia *) RTA_DATA(attr);
                 if (via->rtvia_family != AF_INET) {
                     log_error("unsupported af: %u\n", via->rtvia_family);
-                    return PARSE_SKIP;
+                    return PRASE_SKIP;
                 }
                 dst.gw = *(uint32_t *) via->rtvia_addr;
                 break;
@@ -454,7 +452,7 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
 
                 if (dst_len % sizeof(uint32_t) != 0) {
                     log_error("mpls lbl data %% sizeof(uint32_t) != 0, what?\n");
-                    return PARSE_SKIP;
+                    return PRASE_SKIP;
                 }
 
                 for (size_t i = 0; i < dst_len/sizeof(uint32_t); ++i) {
@@ -467,15 +465,12 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
                 dst.oif = *(uint8_t *) RTA_DATA(attr);
                 break;
             }
-            case RTA_IIF: {
-                dst.iif = *(uint8_t *) RTA_DATA(attr);
-                break;
-            }
+
         }
     }
 
 
-    return PARSE_OK;
+    return PRASE_OK;
 }
 
 }

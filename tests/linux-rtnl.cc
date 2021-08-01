@@ -29,10 +29,9 @@ int main() {
     printf("\nbegin ip routes ====\n");
 
     for (const ldpd::Ipv4Route &rt : rts) {
-        printf("route src: %s/%u\n", inet_ntoa(*(in_addr *) &rt.src), rt.src_len);
         printf("route dst: %s/%u\n", inet_ntoa(*(in_addr *) &rt.dst), rt.dst_len);
         printf("route gw: %s\n", inet_ntoa(*(in_addr *) &rt.gw));
-        printf("route oif: %d, iif: %d\n", rt.oif, rt.iif);
+        printf("route oif: %d\n", rt.oif);
 
         if (rt.mpls_encap) {
             for (const uint32_t &lbl : rt.mpls_stack) {
@@ -56,7 +55,7 @@ int main() {
     for (const ldpd::MplsRoute &rt : mrts) {
         printf("mpls in label: %u\n", rt.in_label);
         printf("gw: %s\n", inet_ntoa(*(in_addr *) &rt.gw));
-        printf("oif: %d, iif: %d\n", rt.oif, rt.iif);
+        printf("oif: %d\n", rt.oif);
 
         if (rt.mpls_encap) {
             for (const uint32_t &lbl : rt.mpls_stack) {
