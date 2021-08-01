@@ -40,14 +40,21 @@ public:
     int getRoutes(std::vector<Ipv4Route> &to);
     int getRoutes(std::vector<MplsRoute> &to);
 
-    int addRoute(const Ipv4Route &route, bool replace = false);
-    int addRoute(const MplsRoute &route, bool replace = false);
+    template <typename T> int addRoute(const T &route, bool replace = false) {
+        return sendRouteMessage(
+            route,
+            RTM_NEWROUTE,
+            NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL));
+    }
 
     int deleteRoute(const Ipv4Route &route);
     int deleteRoute(const MplsRoute &route);
 
 private:
     int sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags);
+    int sendRouteMessage(const Ipv4Route &route, unsigned short type, unsigned short flags);
+    int sendRouteMessage(const MplsRoute &route, unsigned short type, unsigned short flags);
+
     int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data);
 
     ssize_t sendMessage(const void *msg);

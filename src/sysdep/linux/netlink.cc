@@ -123,7 +123,7 @@ int Netlink::getRoutes(std::vector<MplsRoute> &to) {
     return 0;
 }
 
-int Netlink::addRoute(const MplsRoute &route, bool replace) {
+int Netlink::sendRouteMessage(const MplsRoute &route, unsigned short type, unsigned short flags) {
     unsigned int seq = ++_seq;
 
     uint8_t buffer[8192];
@@ -163,18 +163,18 @@ int Netlink::addRoute(const MplsRoute &route, bool replace) {
     msghdr->nlmsg_len = NLMSG_LENGTH(msglen);
     msghdr->nlmsg_pid = _pid;
     msghdr->nlmsg_seq = seq;
-    msghdr->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL);
-    msghdr->nlmsg_type = RTM_NEWROUTE;
+    msghdr->nlmsg_flags = flags;
+    msghdr->nlmsg_type = type;
 
     if (sendMessage(msghdr) < 0) {
         log_error("sendMessage(): %s\n", strerror(errno));
         return -1;
     }
 
-    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) "addroute-mpls");
+    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) "srm-mpls");
 }
 
-int Netlink::addRoute(const Ipv4Route &route, bool replace) {
+int Netlink::sendRouteMessage(const Ipv4Route &route, unsigned short type, unsigned short flags) {
     unsigned int seq = ++_seq;
 
     uint8_t buffer[8192];
@@ -214,15 +214,15 @@ int Netlink::addRoute(const Ipv4Route &route, bool replace) {
     msghdr->nlmsg_len = NLMSG_LENGTH(msglen);
     msghdr->nlmsg_pid = _pid;
     msghdr->nlmsg_seq = seq;
-    msghdr->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL);
-    msghdr->nlmsg_type = RTM_NEWROUTE;
+    msghdr->nlmsg_flags = flags;
+    msghdr->nlmsg_type = type;
 
     if (sendMessage(msghdr) < 0) {
         log_error("sendMessage(): %s\n", strerror(errno));
         return 1;
     }
 
-    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) "addroute-ipv4");
+    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) "srm-ipv4");
 }
 
 int Netlink::sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags) {
