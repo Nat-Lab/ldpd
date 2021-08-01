@@ -154,6 +154,111 @@ int Netlink::getMplsRoutes(std::vector<MplsRoute> &to) {
     return 0;
 }
 
+int Netlink::addMplsRoute(const MplsRoute &route, bool replace) {
+    unsigned int seq = ++_seq;
+
+    uint8_t buffer[8192];
+    uint8_t *ptr = buffer;
+
+    memset(buffer, 0, 8192);
+
+    struct nlmsghdr *msghdr = (struct nlmsghdr *) ptr;
+    ptr += sizeof(struct nlmsghdr);
+
+    uint8_t *msg_start = ptr;
+
+    struct rtmsg *rtmsg = (struct rtmsg *) ptr;
+    ptr += sizeof(struct rtmsg);
+
+    rtmsg->rtm_family = AF_MPLS;
+    rtmsg->rtm_table = RT_TABLE_MAIN;
+    rtmsg->rtm_protocol = RTPROT_STATIC;
+    rtmsg->rtm_scope = RT_SCOPE_UNIVERSE;
+    rtmsg->rtm_type = RTN_UNICAST;
+    rtmsg->rtm_dst_len = 20;
+
+    // add oif attr
+    struct rtattr *oif_attr_hdr = (struct rtattr *) ptr;
+    ptr += sizeof(struct rtattr);
+
+    oif_attr_hdr->rta_type = RTA_OIF;
+    oif_attr_hdr->rta_len = RTA_LENGTH(sizeof(int));
+
+    memcpy(ptr, &(route.oif), sizeof(int));
+    ptr += sizeof(int);
+
+    // add dst attr
+    struct rtattr *dst_attr_hdr = (struct rtattr *) ptr;
+    ptr += sizeof(struct rtattr);
+
+    dst_attr_hdr->rta_type = RTA_DST;
+    dst_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint32_t));
+
+    uint32_t lbl_val = htonl(route.in_label << 12 | 0x100);
+
+    memcpy(ptr, &lbl_val, sizeof(uint32_t));
+    ptr += sizeof(uint32_t);
+
+    if (route.mpls_encap) {
+        uint8_t *backup = ptr;
+
+        // add out label stack
+        struct rtattr *new_dst_attr_hdr = (struct rtattr *) ptr;
+        ptr += sizeof(struct rtattr);
+
+        new_dst_attr_hdr->rta_type = RTA_NEWDST;
+        new_dst_attr_hdr->rta_len = RTA_LENGTH(route.mpls_stack.size() * sizeof(uint32_t));
+
+        uint32_t *last_lbl = nullptr;
+
+        for (const uint32_t &label : route.mpls_stack) {
+            uint32_t lbl_val = htonl(label << 12);
+            memcpy(ptr, &lbl_val, sizeof(uint32_t));
+            last_lbl = (uint32_t *) ptr;
+            ptr += sizeof(uint32_t);
+        }
+
+        if (last_lbl == nullptr) {
+            log_warn("no stack set but mpls_encap = true. do not do this.\n");
+            ptr = backup;
+        } else {
+            *last_lbl = *last_lbl | htonl(0x100);
+        }
+    }
+
+    // add via addr
+    struct rtattr *via_attr_hdr = (struct rtattr *) ptr;
+    ptr += sizeof(struct rtattr);
+
+    via_attr_hdr->rta_type = RTA_VIA;
+    via_attr_hdr->rta_len = RTA_LENGTH(sizeof(struct rtvia) + sizeof(uint32_t));
+
+    struct rtvia *via = (struct rtvia *) ptr;
+    ptr += sizeof(struct rtvia);
+
+    via->rtvia_family = AF_INET;
+
+    memcpy(ptr, &(route.gw), sizeof(uint32_t));
+    ptr += sizeof(uint32_t);
+
+    size_t msglen = ptr - msg_start;
+
+    msghdr->nlmsg_len = NLMSG_LENGTH(msglen);
+    msghdr->nlmsg_pid = _pid;
+    msghdr->nlmsg_seq = seq;
+    msghdr->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL);
+    msghdr->nlmsg_type = RTM_NEWROUTE;
+
+    if (sendMessage(msghdr) < 0) {
+        log_error("sendMessage(): %s\n", strerror(errno));
+        return -1;
+    }
+
+    // for debug
+    getReply((unsigned int) seq, Netlink::dumpMessage, nullptr);
+
+    return seq;
+}
 
 int Netlink::sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags) {
     unsigned int seq = ++_seq;
@@ -459,6 +564,7 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
     RouteAttributes attrs = RouteAttributes(RTM_RTA(rt), RTM_PAYLOAD(src));
 
     if (!attrs.getAttributeValue(RTA_DST, dst.in_label)) { log_warn("ignored a route w/ no rta_dst.\n"); return PRASE_SKIP; }
+    if (!attrs.getAttributeValue(RTA_OIF, dst.oif)) { log_warn("ignored a route w/ no rta_oif.\n"); return PRASE_SKIP; }
 
     dst.in_label = ntohl(dst.in_label) >> 12;
 
@@ -494,6 +600,17 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
 
     return PRASE_OK;
 
+}
+
+int Netlink::dumpMessage(void *unused, const struct nlmsghdr *msg) {
+    if (msg->nlmsg_type == NLMSG_DONE) {
+        log_debug("done.\n");
+        return PROCESS_END;
+    }
+
+    log_debug("got msg type %u.\n", msg->nlmsg_type);
+
+    return PROCESS_NEXT;
 }
 
 }

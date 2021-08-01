@@ -66,6 +66,22 @@ int main() {
         printf("\n");
     }
 
+    printf("addroute test ====\n");
+
+    ldpd::MplsRoute mr = ldpd::MplsRoute();
+
+    mr.gw = inet_addr("10.10.10.10");
+    mr.in_label = 114;
+    mr.oif = 2;
+    mr.mpls_encap = true;
+    mr.mpls_stack = std::vector<uint32_t>();
+    mr.mpls_stack.push_back(514);
+    mr.mpls_stack.push_back(1919);
+    mr.mpls_stack.push_back(810);
+    mr.mpls_stack.push_back(853);
+
+    nl.addMplsRoute(mr);
+
     nl.close();
 
     return 0;

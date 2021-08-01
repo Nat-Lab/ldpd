@@ -64,8 +64,8 @@ public:
     int getIpv4Routes(std::vector<Ipv4Route> &to);
     int getMplsRoutes(std::vector<MplsRoute> &to);
 
-    int addIpv4Route(const Ipv4Route &route);
-    int addMplsRoute(const MplsRoute &route);
+    int addIpv4Route(const Ipv4Route &route, bool replace = false);
+    int addMplsRoute(const MplsRoute &route, bool replace = false);
 
     int deleteIpv4Route(const Ipv4Route &route);
     int deleteMplsRoute(const Ipv4Route &route);
@@ -83,6 +83,7 @@ private:
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);
     static int procressIpv4RouteResults(void *routes, const struct nlmsghdr *);
     static int procressMplsRouteResults(void *routes, const struct nlmsghdr *);
+    static int dumpMessage(void *unused, const struct nlmsghdr *msg);
 
     pid_t _pid;
     int _fd;
