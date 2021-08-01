@@ -75,9 +75,9 @@ public:
     static int parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src);
 
 private:
-    ssize_t sendGeneralQuery(unsigned int seq, unsigned char af, unsigned short type, unsigned short flags) const;
-    ssize_t sendMessage(unsigned int seq, const void *msg, unsigned short type, unsigned short flags) const;
-    int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data) const;
+    int sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags);
+    ssize_t sendMessage(const void *msg);
+    int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data);
 
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);
     static int procressIpv4RouteResults(void *routes, const struct nlmsghdr *);
@@ -85,8 +85,15 @@ private:
 
     pid_t _pid;
     int _fd;
+    
     struct sockaddr_nl _local;
+    struct sockaddr_nl _kernel;
+
     std::vector<struct nlmsghdr *> _saved;
+
+    struct iovec _io;
+    void *_buffer;
+    size_t _bufsz;
     
     unsigned int _seq;
 };

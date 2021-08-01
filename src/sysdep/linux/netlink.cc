@@ -35,12 +35,18 @@ Netlink::Netlink() : _saved() {
     _fd = -1;
 
     memset(&_local, 0, sizeof(struct sockaddr_nl));
+    memset(&_kernel, 0, sizeof(struct sockaddr_nl));
+
+    _kernel.nl_family = AF_NETLINK;
 
     _pid = getpid();
     _local.nl_family = AF_NETLINK;
     _local.nl_pid = _pid;
 
     _seq = 0;
+
+    _buffer = nullptr;
+    _bufsz = 0;
 }
 
 Netlink::~Netlink() {
@@ -97,13 +103,13 @@ int Netlink::close() {
  * @return int status. 0 on success, 1 on error.
  */
 int Netlink::getInterfaces(std::vector<Interface> &to) {
-    unsigned int this_seq = ++_seq;
+    int seq = sendGeneralQuery(AF_INET, RTM_GETLINK, NLM_F_REQUEST | NLM_F_DUMP);
 
-    if (sendGeneralQuery(this_seq, AF_INET, RTM_GETLINK, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (seq < 0) {
         return 1;
     }
 
-    if (getReply(this_seq, Netlink::procressInterfaceResults, &to) != 0) {
+    if (getReply((unsigned int) seq, Netlink::procressInterfaceResults, &to) != 0) {
         return 1;
     }
 
@@ -117,13 +123,13 @@ int Netlink::getInterfaces(std::vector<Interface> &to) {
  * @return int status. 0 on success, 1 on error.
  */
 int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
-    unsigned int this_seq = ++_seq;
+    int seq = sendGeneralQuery(AF_INET, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP);
 
-    if (sendGeneralQuery(this_seq, AF_INET, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (seq < 0) {
         return 1;
     }
 
-    if (getReply(this_seq, Netlink::procressIpv4RouteResults, &to) != 0) {
+    if (getReply((unsigned int) seq, Netlink::procressIpv4RouteResults, &to) != 0) {
         return 1;
     }
 
@@ -131,31 +137,22 @@ int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
 }
 
 int Netlink::getMplsRoutes(std::vector<MplsRoute> &to) {
-    unsigned int this_seq = ++_seq;
+    int seq = sendGeneralQuery(AF_MPLS, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP);
 
-    if (sendGeneralQuery(this_seq, AF_MPLS, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (seq < 0) {
         return 1;
     }
 
-    if (getReply(this_seq, Netlink::procressMplsRouteResults, &to) != 0) {
+    if (getReply((unsigned int) seq, Netlink::procressMplsRouteResults, &to) != 0) {
         return 1;
     }
 
     return 0;
 }
 
-/**
- * @brief send a query of given type to rtnl socket.
- * 
- * @param seq seq to id this request.
- * @param type type.
- * @param flags flags.
- * @return ssize_t ret val of sendmsg.
- */
-ssize_t Netlink::sendGeneralQuery(unsigned int seq, unsigned char af, unsigned short type, unsigned short flags) const {
-    struct sockaddr_nl kernel;
-    struct msghdr nl_msg;
-    struct iovec io;
+
+int Netlink::sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags) {
+    unsigned int seq = ++_seq;
 
     uint8_t buffer[NLMSG_LENGTH(sizeof(struct rtgenmsg))];
     memset(buffer, 0, sizeof(buffer));
@@ -168,29 +165,48 @@ ssize_t Netlink::sendGeneralQuery(unsigned int seq, unsigned char af, unsigned s
     struct rtgenmsg *msg = (struct rtgenmsg *) ptr;
     msg->rtgen_family = af;
 
-    memset(&kernel, 0, sizeof(struct sockaddr_nl));
-    memset(&nl_msg, 0, sizeof(struct msghdr));
-
-    kernel.nl_family = AF_NETLINK;
-    
     msghdr->nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
     msghdr->nlmsg_type = type;
     msghdr->nlmsg_flags = flags;
     msghdr->nlmsg_pid = _pid;
     msghdr->nlmsg_seq = seq;
 
-    io.iov_base = buffer; // !! ptr to local var, safe?
-    io.iov_len = sizeof(buffer);
+    if (sendMessage(msghdr) < 0) {
+        log_error("sendMessage(): %s\n", strerror(errno));
+        return -1;
+    }
 
-    nl_msg.msg_iov = &io; // !! more ptr to local var...
-    nl_msg.msg_iovlen = 1;
-    nl_msg.msg_name = &kernel; // !! and more ptr to local var...
-    nl_msg.msg_namelen = sizeof(struct sockaddr_nl);
-
-    return sendmsg(_fd, (const struct msghdr *) &nl_msg, 0);
+    return seq;
 }
 
-int Netlink::getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data) const {
+ssize_t Netlink::sendMessage(const void *msg) {
+    // not thread safe, may need mutex?
+    struct msghdr msghdr;
+
+    struct nlmsghdr *nl_msghdr = (struct nlmsghdr *) msg;
+
+    if (nl_msghdr->nlmsg_len > _bufsz) {
+        if (_buffer != nullptr) {
+            free(_buffer);
+        }
+
+        _buffer = malloc(nl_msghdr->nlmsg_len);
+    }
+
+    memcpy(_buffer, msg, nl_msghdr->nlmsg_len);
+
+    _io.iov_base = &_buffer;
+    _io.iov_len = nl_msghdr->nlmsg_len;
+
+    msghdr.msg_iov = &_io;
+    msghdr.msg_iovlen = 1;
+    msghdr.msg_name = &_kernel; 
+    msghdr.msg_namelen = sizeof(struct sockaddr_nl);
+
+    return sendmsg(_fd, (const struct msghdr *) &msghdr, 0);
+}
+
+int Netlink::getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data) {
     uint8_t buffer[8192];
 
     struct sockaddr_nl kernel;
