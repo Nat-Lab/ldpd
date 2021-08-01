@@ -63,6 +63,7 @@ private:
     ssize_t sendMessage(const void *msg);
 
     static int parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src);
+    static int parseNetlinkMessage(InterfaceAddress &dst, const struct nlmsghdr *src);
     static int parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src);
     static int parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src);
 

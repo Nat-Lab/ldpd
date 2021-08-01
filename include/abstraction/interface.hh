@@ -6,13 +6,21 @@
 
 namespace ldpd {
 
+struct InterfaceAddress {
+    int ifindex;
+
+    uint32_t address;
+    uint8_t len;
+};
+
 struct Interface {
-    int id;
+    int index;
 
     std::string ifname;
 
-    std::vector<Prefix> addresses;
+    std::vector<InterfaceAddress> addresses;
 };
+
 
 } 
 

@@ -92,6 +92,12 @@ int Netlink::getInterfaces(std::vector<Interface> &to) {
         return 1;
     }
 
+    seq = sendGeneralQuery(AF_INET, RTM_GETADDR, NLM_F_REQUEST | NLM_F_DUMP);
+
+    if (getReply((unsigned int) seq, Netlink::procressInterfaceResults, &to) != 0) {
+        return 1;
+    }
+
     return 0;
 }
 
@@ -324,12 +330,33 @@ int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) 
         }
         case RTM_NEWLINK: {
             Interface iface = Interface();
+            
             if (parseNetlinkMessage(iface, msg) == PRASE_OK) {
                 to->push_back(iface);
             }
 
             break;
         }
+        case RTM_NEWADDR: {
+            InterfaceAddress addr = InterfaceAddress();
+
+            if (parseNetlinkMessage(addr, msg) == PRASE_OK) {
+                bool pushed = false;
+
+                for (Interface &iface : *to) {
+                    if (iface.index == addr.ifindex) {
+                        pushed = true;
+                        iface.addresses.push_back(addr);
+                    }
+                }
+
+                if (!pushed) {
+                    log_warn("got address for unknow interface %d.\n", addr.ifindex);
+                }
+            }
+
+            break;
+        };
         default: {
             log_warn("ignored unknown nlmsg type %u\n", msg->nlmsg_type);
             break;
@@ -387,6 +414,33 @@ int Netlink::procressMplsRouteResults(void *routes, const struct nlmsghdr *msg) 
     return PROCESS_NEXT;
 }
 
+int Netlink::parseNetlinkMessage(InterfaceAddress &dst, const struct nlmsghdr *src) {
+    if (src->nlmsg_type != RTM_NEWADDR) {
+        log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWLINK);
+        return PRASE_SKIP;
+    }
+
+    const struct ifaddrmsg *addr = (const struct ifaddrmsg *) NLMSG_DATA(src);
+
+    if (addr->ifa_family != AF_INET) {
+        log_warn("ignored a non-ipv6 interface address.\n");
+        return PRASE_SKIP;
+    }
+
+    RtAttr attrs = RtAttr();
+    attrs.parse((uint8_t *) IFA_RTA(addr), RTM_PAYLOAD(src));
+
+    dst.ifindex = addr->ifa_index;
+    dst.len = addr->ifa_prefixlen;
+
+    if (!attrs.getAttributeValue(IFA_ADDRESS, dst.address)) {
+        log_error("address has no ifa_address.\n");
+        return PRASE_SKIP;
+    }
+
+    return PRASE_OK;
+}
+
 int Netlink::parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWLINK) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWLINK);
@@ -395,7 +449,7 @@ int Netlink::parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src) {
 
     const struct ifinfomsg *iface = (const struct ifinfomsg *) NLMSG_DATA(src);
 
-    dst.id = iface->ifi_index;
+    dst.index = iface->ifi_index;
 
     RtAttr attrs = RtAttr();
     attrs.parse((uint8_t *) IFLA_RTA(iface), RTM_PAYLOAD(src));

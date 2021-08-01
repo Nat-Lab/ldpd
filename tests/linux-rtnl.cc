@@ -64,7 +64,11 @@ int main() {
     printf("begin ifaces ====\n");
 
     for (const ldpd::Interface &iface : ifaces) {
-        printf("interface %d: %s\n", iface.id, iface.ifname.c_str());
+        printf("%d: %s ", iface.index, iface.ifname.c_str());
+        for (const ldpd::InterfaceAddress &addr : iface.addresses) {
+            printf("%s/%d ", inet_ntoa(*(in_addr *) &(addr.address)), addr.len);
+        }
+        printf("\n");
     }
 
     printf("begin ip routes ====\n");
