@@ -24,15 +24,6 @@
 
 namespace ldpd {
 
-extern "C" {
-
-    typedef struct nl_request {
-        struct nlmsghdr header;
-        struct rtgenmsg message;
-    } nl_request_t;
-
-}
-
 class RouteAttributes {
 public:
     RouteAttributes(const struct rtattr *attr, size_t len);
@@ -84,7 +75,8 @@ public:
     static int parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src);
 
 private:
-    ssize_t sendQuery(unsigned int seq, unsigned char af, unsigned short type, unsigned short flags) const;
+    ssize_t sendGeneralQuery(unsigned int seq, unsigned char af, unsigned short type, unsigned short flags) const;
+    ssize_t sendMessage(unsigned int seq, const void *msg, unsigned short type, unsigned short flags) const;
     int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data) const;
 
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);

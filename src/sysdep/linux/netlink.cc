@@ -99,7 +99,7 @@ int Netlink::close() {
 int Netlink::getInterfaces(std::vector<Interface> &to) {
     unsigned int this_seq = ++_seq;
 
-    if (sendQuery(this_seq, AF_INET, RTM_GETLINK, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (sendGeneralQuery(this_seq, AF_INET, RTM_GETLINK, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
         return 1;
     }
 
@@ -119,7 +119,7 @@ int Netlink::getInterfaces(std::vector<Interface> &to) {
 int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
     unsigned int this_seq = ++_seq;
 
-    if (sendQuery(this_seq, AF_INET, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (sendGeneralQuery(this_seq, AF_INET, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
         return 1;
     }
 
@@ -133,7 +133,7 @@ int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
 int Netlink::getMplsRoutes(std::vector<MplsRoute> &to) {
     unsigned int this_seq = ++_seq;
 
-    if (sendQuery(this_seq, AF_MPLS, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
+    if (sendGeneralQuery(this_seq, AF_MPLS, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP) < 0) {
         return 1;
     }
 
@@ -152,34 +152,39 @@ int Netlink::getMplsRoutes(std::vector<MplsRoute> &to) {
  * @param flags flags.
  * @return ssize_t ret val of sendmsg.
  */
-ssize_t Netlink::sendQuery(unsigned int seq, unsigned char af, unsigned short type, unsigned short flags) const {
+ssize_t Netlink::sendGeneralQuery(unsigned int seq, unsigned char af, unsigned short type, unsigned short flags) const {
     struct sockaddr_nl kernel;
     struct msghdr nl_msg;
     struct iovec io;
 
-    nl_request_t request;
+    uint8_t buffer[NLMSG_LENGTH(sizeof(struct rtgenmsg))];
+    memset(buffer, 0, sizeof(buffer));
+
+    uint8_t *ptr = buffer;
+
+    struct nlmsghdr *msghdr = (struct nlmsghdr *) ptr;
+    ptr += sizeof(struct nlmsghdr);
+
+    struct rtgenmsg *msg = (struct rtgenmsg *) ptr;
+    msg->rtgen_family = af;
 
     memset(&kernel, 0, sizeof(struct sockaddr_nl));
     memset(&nl_msg, 0, sizeof(struct msghdr));
-    memset(&request, 0, sizeof(nl_request_t));
 
     kernel.nl_family = AF_NETLINK;
     
-    request.header.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
-    request.header.nlmsg_type = type;
-    request.header.nlmsg_flags = flags;
-    request.header.nlmsg_pid = _pid;
-    request.header.nlmsg_seq = seq;
+    msghdr->nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
+    msghdr->nlmsg_type = type;
+    msghdr->nlmsg_flags = flags;
+    msghdr->nlmsg_pid = _pid;
+    msghdr->nlmsg_seq = seq;
 
-    // will deal with v4 only for now.
-    request.message.rtgen_family = af;
+    io.iov_base = buffer; // !! ptr to local var, safe?
+    io.iov_len = sizeof(buffer);
 
-    io.iov_base = &request;
-    io.iov_len = sizeof(nl_request);
-
-    nl_msg.msg_iov = &io;
+    nl_msg.msg_iov = &io; // !! more ptr to local var...
     nl_msg.msg_iovlen = 1;
-    nl_msg.msg_name = &kernel;
+    nl_msg.msg_name = &kernel; // !! and more ptr to local var...
     nl_msg.msg_namelen = sizeof(struct sockaddr_nl);
 
     return sendmsg(_fd, (const struct msghdr *) &nl_msg, 0);
