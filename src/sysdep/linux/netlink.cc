@@ -54,6 +54,10 @@ Netlink::~Netlink() {
         free(msg);
     }
 
+    if (_buffer != nullptr) {
+        free(_buffer);
+    }
+
     _saved.clear();
 
     close();
