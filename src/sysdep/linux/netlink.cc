@@ -257,6 +257,143 @@ int Netlink::addMplsRoute(const MplsRoute &route, bool replace) {
     return getReply((unsigned int) seq, Netlink::commonAckHandler, (char *) __FUNCTION__);
 }
 
+int Netlink::addIpv4Route(const Ipv4Route &route, bool replace) {
+    unsigned int seq = ++_seq;
+
+    uint8_t buffer[8192];
+    uint8_t *ptr = buffer;
+
+    memset(buffer, 0, 8192);
+
+    struct nlmsghdr *msghdr = (struct nlmsghdr *) ptr;
+    ptr += sizeof(struct nlmsghdr);
+
+    uint8_t *msg_start = ptr;
+
+    struct rtmsg *rtmsg = (struct rtmsg *) ptr;
+    ptr += sizeof(struct rtmsg);
+
+    rtmsg->rtm_family = AF_INET;
+    rtmsg->rtm_table = RT_TABLE_MAIN;
+    rtmsg->rtm_protocol = RTPROT_STATIC;
+    rtmsg->rtm_scope = RT_SCOPE_UNIVERSE;
+    rtmsg->rtm_type = RTN_UNICAST;
+    rtmsg->rtm_dst_len = route.dst_len;
+
+    // add oif attr
+    struct rtattr *oif_attr_hdr = (struct rtattr *) ptr;
+    ptr += sizeof(struct rtattr);
+
+    oif_attr_hdr->rta_type = RTA_OIF;
+    oif_attr_hdr->rta_len = RTA_LENGTH(sizeof(int));
+
+    memcpy(ptr, &(route.oif), sizeof(int));
+    ptr += sizeof(int);
+
+    // add dst attr
+    struct rtattr *dst_attr_hdr = (struct rtattr *) ptr;
+    ptr += sizeof(struct rtattr);
+
+    dst_attr_hdr->rta_type = RTA_DST;
+    dst_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint32_t));
+
+    memcpy(ptr, &(route.dst), sizeof(uint32_t));
+    ptr += sizeof(uint32_t);
+
+    // add gw attr
+    struct rtattr *gw_attr_hdr = (struct rtattr *) ptr;
+    ptr += sizeof(struct rtattr);
+
+    gw_attr_hdr->rta_type = RTA_GATEWAY;
+    gw_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint32_t));
+
+    memcpy(ptr, &(route.gw), sizeof(uint32_t));
+    ptr += sizeof(uint32_t);
+
+    if (route.mpls_encap) {
+        uint8_t *backup = ptr;
+
+        // add rta_encap attr
+        struct rtattr *encap_attr_hdr = (struct rtattr *) ptr;
+        ptr += sizeof(struct rtattr);
+
+        encap_attr_hdr->rta_type = RTA_ENCAP;
+
+        {
+            uint8_t *nested_attr_start = ptr;
+
+            if (route.mpls_ttl != 255) {
+                // nested attr: mpls_ttl
+                struct rtattr *nested_mpls_ttl_attr_hdr = (struct rtattr *) ptr;
+                ptr += sizeof(struct rtattr);
+
+                nested_mpls_ttl_attr_hdr->rta_type = MPLS_IPTUNNEL_TTL;
+                nested_mpls_ttl_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint8_t));
+                
+                memcpy(ptr, &(route.mpls_ttl), sizeof(uint8_t));
+                ptr += sizeof(uint8_t);
+            }
+
+            // nested attr: mpls_tunnel_dst
+            struct rtattr *nested_mpls_dst_attr_hdr = (struct rtattr *) ptr;
+            ptr += sizeof(struct rtattr);
+
+            nested_mpls_dst_attr_hdr->rta_type = MPLS_IPTUNNEL_DST;
+            nested_mpls_dst_attr_hdr->rta_len = RTA_LENGTH(sizeof(uint32_t) * route.mpls_stack.size());
+
+            uint32_t *last_lbl = nullptr;
+
+            for (const uint32_t &label : route.mpls_stack) {
+                uint32_t lbl_val = htonl(label << 12);
+                memcpy(ptr, &lbl_val, sizeof(uint32_t));
+                last_lbl = (uint32_t *) ptr;
+                ptr += sizeof(uint32_t);
+            }
+
+            if (last_lbl == nullptr) {
+                log_warn("no stack set but mpls_encap = true. do not do this.\n");
+                ptr = backup;
+                goto send;
+            } else {
+                *last_lbl = *last_lbl | htonl(0x100);
+            }
+
+            encap_attr_hdr->rta_len = RTA_LENGTH(ptr - nested_attr_start);
+        }
+
+        // add rta_encap_type attr
+        struct rtattr *encap_type_attr_hdr = (struct rtattr *) ptr;
+        ptr += sizeof(struct rtattr);
+
+        encap_type_attr_hdr->rta_type = RTA_ENCAP_TYPE;
+        encap_type_attr_hdr->rta_len = RTA_LENGTH(sizeof(short));
+
+        short type = LWTUNNEL_ENCAP_MPLS;
+
+        memcpy(ptr, &(type), sizeof(short));
+        ptr += sizeof(short);
+        
+    }
+
+send:
+
+    size_t msglen = ptr - msg_start;
+
+    msghdr->nlmsg_len = NLMSG_LENGTH(msglen);
+    msghdr->nlmsg_pid = _pid;
+    msghdr->nlmsg_seq = seq;
+    msghdr->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL);
+    msghdr->nlmsg_type = RTM_NEWROUTE;
+
+    if (sendMessage(msghdr) < 0) {
+        log_error("sendMessage(): %s\n", strerror(errno));
+        return -1;
+    }
+
+    return getReply((unsigned int) seq, Netlink::commonAckHandler, (char *) __FUNCTION__);
+
+}
+
 int Netlink::sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags) {
     unsigned int seq = ++_seq;
 

@@ -84,6 +84,22 @@ int main() {
         printf("add-mpls-route ok.\n");
     }
 
+    ldpd::Ipv4Route ir = ldpd::Ipv4Route();
+
+    ir.dst = inet_addr("114.51.4.0");
+    ir.dst_len = 24;
+    ir.gw = inet_addr("172.16.0.254");
+    ir.mpls_encap = true;
+    ir.mpls_stack = std::vector<uint32_t>();
+    ir.mpls_stack.push_back(1919);
+    ir.mpls_stack.push_back(810);
+    ir.mpls_stack.push_back(853);
+    ir.mpls_ttl = 255;
+
+    if (nl.addIpv4Route(ir) == 0) {
+        printf("add-ipv4-route ok.\n");
+    }
+
     nl.close();
 
     return 0;
