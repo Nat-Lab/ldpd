@@ -183,16 +183,17 @@ int Netlink::addMplsRoute(const MplsRoute &route, bool replace) {
 
     attrs.addRawAttribute(RTA_VIA, via_buf, via_val_sz);
 
-    size_t buffer_left = sizeof(buffer) - (ptr - buffer);
-    ssize_t ret = attrs.write(ptr, buffer_left);
+    size_t buffer_left = sizeof(buffer) - sizeof(struct nlmsghdr) - sizeof(struct rtmsg);
+    
+    ssize_t attrs_len = attrs.write(ptr, buffer_left);
 
-    if (ret < 0) {
+    if (attrs_len < 0) {
         return 1;
     }
 
-    log_debug("ret: %zu\n", ret);
+    size_t msglen = (size_t) attrs_len + sizeof(struct rtmsg);
 
-    msghdr->nlmsg_len = NLMSG_LENGTH((size_t) ret);
+    msghdr->nlmsg_len = NLMSG_LENGTH(msglen);
     msghdr->nlmsg_pid = _pid;
     msghdr->nlmsg_seq = seq;
     msghdr->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | (replace ? NLM_F_REPLACE : NLM_F_EXCL);
