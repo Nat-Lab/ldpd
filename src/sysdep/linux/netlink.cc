@@ -183,6 +183,8 @@ ssize_t Netlink::sendMessage(const void *msg) {
     // not thread safe, may need mutex?
     struct msghdr msghdr;
 
+    memset(&msghdr, 0, sizeof(struct msghdr));
+
     struct nlmsghdr *nl_msghdr = (struct nlmsghdr *) msg;
 
     if (nl_msghdr->nlmsg_len > _bufsz) {
