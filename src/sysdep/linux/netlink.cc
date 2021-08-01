@@ -214,6 +214,8 @@ ssize_t Netlink::sendMessage(const void *msg) {
 
 int Netlink::getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data) {
     uint8_t buffer[8192];
+    
+    memset(buffer, 0, sizeof(buffer));
 
     struct sockaddr_nl kernel;
 
