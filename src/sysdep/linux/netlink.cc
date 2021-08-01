@@ -95,13 +95,7 @@ int Netlink::getInterfaces(std::vector<Interface> &to) {
     return 0;
 }
 
-/**
- * @brief get routes. will block.
- * 
- * @param to location to store retrieved routes.
- * @return int status. 0 on success, 1 on error.
- */
-int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
+int Netlink::getRoutes(std::vector<Ipv4Route> &to) {
     int seq = sendGeneralQuery(AF_INET, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP);
 
     if (seq < 0) {
@@ -115,7 +109,7 @@ int Netlink::getIpv4Routes(std::vector<Ipv4Route> &to) {
     return 0;
 }
 
-int Netlink::getMplsRoutes(std::vector<MplsRoute> &to) {
+int Netlink::getRoutes(std::vector<MplsRoute> &to) {
     int seq = sendGeneralQuery(AF_MPLS, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP);
 
     if (seq < 0) {
@@ -129,7 +123,7 @@ int Netlink::getMplsRoutes(std::vector<MplsRoute> &to) {
     return 0;
 }
 
-int Netlink::addMplsRoute(const MplsRoute &route, bool replace) {
+int Netlink::addRoute(const MplsRoute &route, bool replace) {
     unsigned int seq = ++_seq;
 
     uint8_t buffer[8192];
@@ -204,10 +198,10 @@ int Netlink::addMplsRoute(const MplsRoute &route, bool replace) {
         return -1;
     }
 
-    return getReply((unsigned int) seq, Netlink::commonAckHandler, (char *) __FUNCTION__);
+    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) "addroute-mpls");
 }
 
-int Netlink::addIpv4Route(const Ipv4Route &route, bool replace) {
+int Netlink::addRoute(const Ipv4Route &route, bool replace) {
     unsigned int seq = ++_seq;
 
     uint8_t buffer[8192];
@@ -288,8 +282,7 @@ int Netlink::addIpv4Route(const Ipv4Route &route, bool replace) {
         return 1;
     }
 
-    return getReply((unsigned int) seq, Netlink::commonAckHandler, (char *) __FUNCTION__);
-
+    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) "addroute-ipv4");
 }
 
 int Netlink::sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags) {
@@ -427,7 +420,7 @@ int Netlink::procressInterfaceResults(void *ifaces, const struct nlmsghdr *msg) 
         }
         case RTM_NEWLINK: {
             Interface iface = Interface();
-            if (parseInterface(iface, msg) == PRASE_OK) {
+            if (parseNetlinkMessage(iface, msg) == PRASE_OK) {
                 to->push_back(iface);
             }
 
@@ -451,7 +444,7 @@ int Netlink::procressIpv4RouteResults(void *routes, const struct nlmsghdr *msg) 
         }
         case RTM_NEWROUTE: {
             Ipv4Route r = Ipv4Route();
-            if (parseIpv4Route(r, msg) == PRASE_OK) {
+            if (parseNetlinkMessage(r, msg) == PRASE_OK) {
                 to->push_back(r);
             }
             
@@ -475,7 +468,7 @@ int Netlink::procressMplsRouteResults(void *routes, const struct nlmsghdr *msg) 
         }
         case RTM_NEWROUTE: {
             MplsRoute r = MplsRoute();
-            if (parseMplsRoute(r, msg) == PRASE_OK) {
+            if (parseNetlinkMessage(r, msg) == PRASE_OK) {
                 to->push_back(r);
             }
             
@@ -490,14 +483,7 @@ int Netlink::procressMplsRouteResults(void *routes, const struct nlmsghdr *msg) 
     return PROCESS_NEXT;
 }
 
-/**
- * @brief parse an interface from nlmsg.
- * 
- * @param dst place to store the interface.
- * @param src source nlmsg.
- * @return int status. 0 on success, 1 on error.
- */
-int Netlink::parseInterface(Interface &dst, const struct nlmsghdr *src) {
+int Netlink::parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWLINK) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWLINK);
         return PRASE_SKIP;
@@ -520,7 +506,7 @@ int Netlink::parseInterface(Interface &dst, const struct nlmsghdr *src) {
     return PRASE_OK;
 }
 
-int Netlink::parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src) {
+int Netlink::parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWROUTE) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
         return PRASE_SKIP;
@@ -591,7 +577,7 @@ int Netlink::parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src) {
     return PRASE_OK;
 }
 
-int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
+int Netlink::parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src) {
     if (src->nlmsg_type != RTM_NEWROUTE) {
         log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
         return PRASE_SKIP;

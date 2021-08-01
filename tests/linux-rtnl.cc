@@ -22,7 +22,7 @@ int main() {
 
     std::vector<ldpd::Ipv4Route> rts = std::vector<ldpd::Ipv4Route>();
 
-    if (nl.getIpv4Routes(rts)) {
+    if (nl.getRoutes(rts)) {
         return 1;
     }
 
@@ -46,7 +46,7 @@ int main() {
 
     std::vector<ldpd::MplsRoute> mrts = std::vector<ldpd::MplsRoute>();
 
-    if (nl.getMplsRoutes(mrts)) {
+    if (nl.getRoutes(mrts)) {
         return 1;
     }
 
@@ -80,7 +80,7 @@ int main() {
     mr.mpls_stack.push_back(810);
     mr.mpls_stack.push_back(853);
 
-    if (nl.addMplsRoute(mr) == 0) {
+    if (nl.addRoute(mr) == 0) {
         printf("add-mpls-route ok.\n");
     }
 
@@ -96,7 +96,7 @@ int main() {
     ir.mpls_stack.push_back(853);
     ir.mpls_ttl = 255;
 
-    if (nl.addIpv4Route(ir) == 0) {
+    if (nl.addRoute(ir) == 0) {
         printf("add-ipv4-route ok.\n");
     }
 

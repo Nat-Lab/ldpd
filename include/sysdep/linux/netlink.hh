@@ -35,14 +35,15 @@ public:
     int close();
 
     int getInterfaces(std::vector<Interface> &to);
-    int getIpv4Routes(std::vector<Ipv4Route> &to);
-    int getMplsRoutes(std::vector<MplsRoute> &to);
 
-    int addIpv4Route(const Ipv4Route &route, bool replace = false);
-    int addMplsRoute(const MplsRoute &route, bool replace = false);
+    int getRoutes(std::vector<Ipv4Route> &to);
+    int getRoutes(std::vector<MplsRoute> &to);
 
-    int deleteIpv4Route(const Ipv4Route &route);
-    int deleteMplsRoute(const Ipv4Route &route);
+    int addRoute(const Ipv4Route &route, bool replace = false);
+    int addRoute(const MplsRoute &route, bool replace = false);
+
+    int deleteRoute(const Ipv4Route &route);
+    int deleteRoute(const MplsRoute &route);
 
 private:
     int sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags);
@@ -50,9 +51,9 @@ private:
 
     ssize_t sendMessage(const void *msg);
 
-    static int parseInterface(Interface &dst, const struct nlmsghdr *src);
-    static int parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src);
-    static int parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src);
+    static int parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src);
+    static int parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src);
+    static int parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src);
 
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);
     static int procressIpv4RouteResults(void *routes, const struct nlmsghdr *);
