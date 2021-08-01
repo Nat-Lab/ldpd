@@ -1,6 +1,53 @@
 #include "sysdep/linux/netlink.hh"
 #include <arpa/inet.h>
 
+int dump_v4_route(ldpd::Netlink &nl) {
+    std::vector<ldpd::Ipv4Route> rts = std::vector<ldpd::Ipv4Route>();
+
+    if (nl.getRoutes(rts)) {
+        return 1;
+    }
+
+    for (const ldpd::Ipv4Route &rt : rts) {
+        printf("%s/%u via ", inet_ntoa(*(in_addr *) &rt.dst), rt.dst_len);
+        printf("%s oif %d", inet_ntoa(*(in_addr *) &rt.gw), rt.oif);
+
+        if (rt.mpls_encap) {
+            printf(", mpls: ");
+            for (const uint32_t &lbl : rt.mpls_stack) {
+                printf("%u/", lbl);
+            }
+            printf("S, ttl: %u", rt.mpls_ttl);
+        }
+        printf("\n");
+    }
+
+    return 0;
+}
+
+int dump_mpls_route(ldpd::Netlink &nl) {
+    std::vector<ldpd::MplsRoute> mrts = std::vector<ldpd::MplsRoute>();
+
+    if (nl.getRoutes(mrts)) {
+        return 1;
+    }
+
+    for (const ldpd::MplsRoute &rt : mrts) {
+        printf("%u via %s oif %d", rt.in_label, inet_ntoa(*(in_addr *) &rt.gw), rt.oif);
+        if (rt.mpls_encap) {
+            printf(", out stack: ");
+            for (const uint32_t &lbl : rt.mpls_stack) {
+                printf("%u/", lbl);
+            }
+            printf("S");
+        }
+
+        printf("\n");
+    }
+
+    return 0;
+}
+
 int main() {
     ldpd::Netlink nl = ldpd::Netlink();
 
@@ -20,51 +67,11 @@ int main() {
         printf("interface %d: %s\n", iface.id, iface.ifname.c_str());
     }
 
-    std::vector<ldpd::Ipv4Route> rts = std::vector<ldpd::Ipv4Route>();
-
-    if (nl.getRoutes(rts)) {
-        return 1;
-    }
-
-    printf("\nbegin ip routes ====\n");
-
-    for (const ldpd::Ipv4Route &rt : rts) {
-        printf("route dst: %s/%u\n", inet_ntoa(*(in_addr *) &rt.dst), rt.dst_len);
-        printf("route gw: %s\n", inet_ntoa(*(in_addr *) &rt.gw));
-        printf("route oif: %d\n", rt.oif);
-
-        if (rt.mpls_encap) {
-            for (const uint32_t &lbl : rt.mpls_stack) {
-                printf("mpls stack: %u\n", lbl);
-            }
-
-            printf("mpls ttl: %u\n", rt.mpls_ttl);
-        }
-
-        printf("\n");
-    }
-
-    std::vector<ldpd::MplsRoute> mrts = std::vector<ldpd::MplsRoute>();
-
-    if (nl.getRoutes(mrts)) {
-        return 1;
-    }
+    printf("begin ip routes ====\n");
+    dump_v4_route(nl);
 
     printf("begin mpls routes ====\n");
-
-    for (const ldpd::MplsRoute &rt : mrts) {
-        printf("mpls in label: %u\n", rt.in_label);
-        printf("gw: %s\n", inet_ntoa(*(in_addr *) &rt.gw));
-        printf("oif: %d\n", rt.oif);
-
-        if (rt.mpls_encap) {
-            for (const uint32_t &lbl : rt.mpls_stack) {
-                printf("out mpls stack: %u\n", lbl);
-            }
-        }
-
-        printf("\n");
-    }
+    dump_mpls_route(nl);
 
     printf("addroute test ====\n");
 
@@ -81,7 +88,8 @@ int main() {
     mr.mpls_stack.push_back(853);
 
     if (nl.addRoute(mr) == 0) {
-        printf("add-mpls-route ok.\n");
+        printf("add-mpls-route ok, rtable now: \n");
+        dump_mpls_route(nl);
     }
 
     ldpd::Ipv4Route ir = ldpd::Ipv4Route();
@@ -94,10 +102,22 @@ int main() {
     ir.mpls_stack.push_back(1919);
     ir.mpls_stack.push_back(810);
     ir.mpls_stack.push_back(853);
-    ir.mpls_ttl = 255;
 
     if (nl.addRoute(ir) == 0) {
-        printf("add-ipv4-route ok.\n");
+        printf("add-ipv4-route ok, rtablw now:\n");
+        dump_v4_route(nl);
+    }
+
+    printf("delroute test ====\n");
+
+    if (nl.deleteRoute(mr) == 0) {
+        printf("del-mpls-route ok, rtable now: \n");
+        dump_mpls_route(nl);
+    }
+
+    if (nl.deleteRoute(ir) == 0) {
+        printf("del-ipv4-route ok, rtable now: \n");
+        dump_v4_route(nl);
     }
 
     nl.close();
