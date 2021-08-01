@@ -197,7 +197,7 @@ ssize_t Netlink::sendMessage(const void *msg) {
 
     memcpy(_buffer, msg, nl_msghdr->nlmsg_len);
 
-    _io.iov_base = &_buffer;
+    _io.iov_base = _buffer;
     _io.iov_len = nl_msghdr->nlmsg_len;
 
     msghdr.msg_iov = &_io;
@@ -453,6 +453,8 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
     RouteAttributes attrs = RouteAttributes(RTM_RTA(rt), RTM_PAYLOAD(src));
 
     if (!attrs.getAttributeValue(RTA_DST, dst.in_label)) { log_warn("ignored a route w/ no rta_dst.\n"); return PRASE_SKIP; }
+
+    dst.in_label = ntohl(dst.in_label) >> 12;
 
     const struct rtvia *via;
 
