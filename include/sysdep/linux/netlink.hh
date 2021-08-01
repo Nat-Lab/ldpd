@@ -70,14 +70,15 @@ public:
     int deleteIpv4Route(const Ipv4Route &route);
     int deleteMplsRoute(const Ipv4Route &route);
 
+private:
+    int sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags);
+    int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data);
+
+    ssize_t sendMessage(const void *msg);
+
     static int parseInterface(Interface &dst, const struct nlmsghdr *src);
     static int parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src);
     static int parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src);
-
-private:
-    int sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags);
-    ssize_t sendMessage(const void *msg);
-    int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data);
 
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);
     static int procressIpv4RouteResults(void *routes, const struct nlmsghdr *);
