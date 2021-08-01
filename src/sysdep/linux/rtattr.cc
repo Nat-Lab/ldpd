@@ -1,4 +1,3 @@
-#include "utils/log.hh"
 #include "sysdep/linux/rtattr.hh"
 
 namespace ldpd {
@@ -38,6 +37,11 @@ void RtAttr::addNestedAttribute(unsigned short type, const RtAttr &payload) {
 }
 
 void RtAttr::addRawAttribute(unsigned short type, const uint8_t *payload, size_t payload_len) {
+    if (hasAttribute(type)) {
+        log_warn("ignore add, since attribute with type %u already exists.\n", type);
+        return;
+    }
+
     size_t len = RTA_LENGTH(payload_len);
     uint8_t *attr_buf = (uint8_t *) malloc(len);
 
@@ -50,6 +54,8 @@ void RtAttr::addRawAttribute(unsigned short type, const uint8_t *payload, size_t
     attr->rta_type = type;
 
     memcpy(ptr, payload, payload_len);
+
+    _attrs[type] = attr;
 }
 
 ssize_t RtAttr::parse(const uint8_t *from, size_t len) {

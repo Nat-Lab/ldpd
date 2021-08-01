@@ -1,5 +1,6 @@
 #ifndef LDP_RTATTR_H
 #define LDP_RTATTR_H
+#include "utils/log.hh"
 #include "core/serializable.hh"
 #include <string.h>
 #include <linux/rtnetlink.h>
@@ -31,8 +32,9 @@ public:
         return true;
     }
 
-    template <typename T> void addAttribute(unsigned short type, T value) {
+    template <typename T> void addAttribute(unsigned short type, const T &value) {
         if (hasAttribute(type)) {
+            log_warn("ignore add, since attribute with type %u already exists.\n", type);
             return;
         }
 
@@ -47,7 +49,9 @@ public:
         attr->rta_len = len;
         attr->rta_type = type;
 
-        memcpy(ptr, value, sizeof(T));
+        memcpy(ptr, &value, sizeof(T));
+
+        _attrs[type] = attr;
     }
 
     void addNestedAttribute(unsigned short type, const RtAttr &payload);
