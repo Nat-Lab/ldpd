@@ -1,3 +1,5 @@
+#ifndef LDP_NETLINK_H
+#define LDP_NETLINK_H
 #include "utils/log.hh"
 #include "abstraction/interface.hh"
 #include "abstraction/route.hh"
@@ -23,34 +25,6 @@
 #define PROCESS_ERR 2
 
 namespace ldpd {
-
-class RouteAttributes {
-public:
-    RouteAttributes(const struct rtattr *attr, size_t len);
-    ~RouteAttributes();
-
-    const struct rtattr* getAttribute(unsigned short type) const;
-    bool hasAttribute(unsigned short type) const;
-    
-    template <typename T> bool getAttributeValue(unsigned short type, T &val) const {
-        if (!hasAttribute(type)) {
-            return false;
-        }
-        val = *(T *) RTA_DATA(getAttribute(type));
-        return true;
-    }
-
-    template <typename T> bool getAttributePointer(unsigned short type, T* &val) const {
-        if (!hasAttribute(type)) {
-            return false;
-        }
-        val = (T *) RTA_DATA(getAttribute(type));
-        return true;
-    }
-
-private:
-    std::map<unsigned short, struct rtattr*> _attrs;
-};
 
 class Netlink {
 public:
@@ -101,3 +75,5 @@ private:
 };
 
 }
+
+#endif // LDP_NETLINK_H

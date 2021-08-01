@@ -1,35 +1,10 @@
 #include "sysdep/linux/netlink.hh"
+#include "sysdep/linux/rtattr.hh"
 #include <errno.h>
 #include <arpa/inet.h>
 #include <linux/mpls_iptunnel.h>
 
 namespace ldpd {
-
-RouteAttributes::RouteAttributes(const struct rtattr *attr, size_t len) : _attrs() {
-    for (; RTA_OK(attr, len); attr = RTA_NEXT(attr, len)) {
-        struct rtattr *local_copy = (struct rtattr *) malloc(attr->rta_len);
-        memcpy(local_copy, attr, attr->rta_len);
-        _attrs[attr->rta_type] = local_copy;
-    }
-}
-
-RouteAttributes::~RouteAttributes() {
-    for (std::pair<const unsigned short, struct rtattr*> attr : _attrs) {
-        free(attr.second);
-    }
-}
-
-const struct rtattr* RouteAttributes::getAttribute(unsigned short type) const {
-    if (_attrs.count(type) == 0) {
-        return nullptr;
-    }
-
-    return _attrs.at(type);
-}
-
-bool RouteAttributes::hasAttribute(unsigned short type) const {
-    return _attrs.count(type);
-}
 
 Netlink::Netlink() : _saved() {
     _fd = -1;
@@ -609,7 +584,8 @@ int Netlink::parseInterface(Interface &dst, const struct nlmsghdr *src) {
 
     dst.id = iface->ifi_index;
 
-    RouteAttributes attrs = RouteAttributes(IFLA_RTA(iface), RTM_PAYLOAD(src));
+    RtAttr attrs = RtAttr();
+    attrs.parse((uint8_t *) IFLA_RTA(iface), RTM_PAYLOAD(src));
 
     if (attrs.hasAttribute(IFLA_IFNAME)) {
         dst.ifname = std::string((const char*) RTA_DATA(attrs.getAttribute(IFLA_IFNAME)));
@@ -639,7 +615,8 @@ int Netlink::parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src) {
     dst.mpls_stack = std::vector<uint32_t>();
     dst.mpls_ttl = 255;
 
-    RouteAttributes attrs = RouteAttributes(RTM_RTA(rt), RTM_PAYLOAD(src));
+    RtAttr attrs = RtAttr();
+    attrs.parse((uint8_t *) RTM_RTA(rt), RTM_PAYLOAD(src));
 
     if (!attrs.getAttributeValue(RTA_DST, dst.dst)) { log_warn("ignored a route w/ no rta_dst.\n"); return PRASE_SKIP; }
     if (!attrs.getAttributeValue(RTA_OIF, dst.oif)) { log_warn("ignored a route w/ no rta_oif.\n"); return PRASE_SKIP; }
@@ -665,7 +642,8 @@ int Netlink::parseIpv4Route(Ipv4Route &dst, const struct nlmsghdr *src) {
 
     dst.mpls_encap = true;
 
-    RouteAttributes mpls_info = RouteAttributes(encap_attr_val, encap_attr_val->rta_len);
+    RtAttr mpls_info = RtAttr();
+    mpls_info.parse((uint8_t *) encap_attr_val, encap_attr_val->rta_len);
 
     const uint32_t *labels;
 
@@ -705,7 +683,8 @@ int Netlink::parseMplsRoute(MplsRoute &dst, const struct nlmsghdr *src) {
     dst.mpls_encap = false;
     dst.mpls_stack = std::vector<uint32_t>();
 
-    RouteAttributes attrs = RouteAttributes(RTM_RTA(rt), RTM_PAYLOAD(src));
+    RtAttr attrs = RtAttr();
+    attrs.parse((uint8_t *) RTM_RTA(rt), RTM_PAYLOAD(src));
 
     if (!attrs.getAttributeValue(RTA_DST, dst.in_label)) { log_warn("ignored a route w/ no rta_dst.\n"); return PRASE_SKIP; }
     if (!attrs.getAttributeValue(RTA_OIF, dst.oif)) { log_warn("ignored a route w/ no rta_oif.\n"); return PRASE_SKIP; }
