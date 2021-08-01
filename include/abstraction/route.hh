@@ -6,10 +6,12 @@
 namespace ldpd {
 
 enum RouteType {
-    Generic, Connected
+    Ipv4, Mpls
 };
 
 struct Route {
+    Route();
+
     // out iface id.
     int oif;
 
@@ -22,9 +24,13 @@ struct Route {
     // mpls labels stack, if mpls_encap. labels are in host byte order
     std::vector<uint32_t> mpls_stack;
 
+    virtual RouteType getType() const = 0;
+
 };
 
 struct Ipv4Route : public Route {
+    Ipv4Route();
+
     // dst net, in network byte order
     uint32_t dst;
 
@@ -33,11 +39,17 @@ struct Ipv4Route : public Route {
 
     // mpls ttl, if mpls_encap.
     uint8_t mpls_ttl;
+
+    virtual RouteType getType() const;
 };
 
 struct MplsRoute : public Route {
+    MplsRoute();
+
     // in label
     uint32_t in_label;
+
+    virtual RouteType getType() const;
 };
 
 } 
