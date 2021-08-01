@@ -82,7 +82,7 @@ ssize_t RtAttr::write(uint8_t *to, size_t buf_sz) const {
 
     for (std::pair<const unsigned short, const struct rtattr*> attr : _attrs) {
         memcpy(ptr, attr.second, attr.second->rta_len);
-        ptr += attr.second->rta_len;
+        ptr += RTA_ALIGN(attr.second->rta_len);
     }
 
     return ptr - to;
@@ -91,7 +91,7 @@ ssize_t RtAttr::write(uint8_t *to, size_t buf_sz) const {
 size_t RtAttr::length() const {
     size_t len = 0;
     for (std::pair<const unsigned short, const struct rtattr*> attr : _attrs) {
-        len += attr.second->rta_len;
+        len += RTA_ALIGN(attr.second->rta_len);
     }
 
     return len;
