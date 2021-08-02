@@ -88,6 +88,16 @@ const std::vector<LdpRawTlv *> LdpMessage::getTlvs() const {
     return _tlvs;
 }
 
+const LdpRawTlv* LdpMessage::getTlv(uint16_t type) const {
+    for (LdpRawTlv *tlv : _tlvs) {
+        if (tlv->getType() == type) {
+            return tlv;
+        }
+    }
+
+    return nullptr;
+}
+
 ssize_t LdpMessage::parse(const uint8_t *from, size_t buf_sz) {
     const uint8_t *buffer = from;
     size_t buf_remaining = buf_sz;

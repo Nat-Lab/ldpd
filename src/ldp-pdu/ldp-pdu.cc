@@ -171,6 +171,16 @@ const std::vector<LdpMessage *> LdpPdu::getMessages() const {
     return _messages;
 }
 
+const LdpMessage* LdpPdu::getMessage(uint16_t type) const {
+    for (const LdpMessage *msg : _messages) {
+        if (msg->getType() == type) {
+            return msg;
+        }
+    }
+
+    return nullptr;
+}
+
 /**
  * @brief re-calculate the appropriate length for the length field.
  * 
