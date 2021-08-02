@@ -393,6 +393,7 @@ void Ldpd::handleHello() {
 
     if (_fsms.count(key) == 0) {
         if (ntohl(_transport) > ntohl(ta)) {
+            log_debug("no running session with %s:%d and we have higher transport-address, sending init...\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
             createSession(nei_id, nei_ls);
         }
     }
@@ -506,6 +507,7 @@ void Ldpd::handleSession(int fd) {
         // FIXME: buffer read from fd may have .5 or 1.5 pkt - need to save partial pkt.
         ssize_t ret = session->receive(buffer + offset, len);
 
+
         if (ret < 0 || session->getState() == LdpSessionState::Invalid) {
             shutdownSession(session);
             removeSession(session);
@@ -593,6 +595,8 @@ ssize_t Ldpd::transmit(LdpFsm* by, const uint8_t *buffer, size_t len) {
 void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
     uint64_t key = LDP_KEY(nei_id, nei_ls);
 
+    log_info("creating new session with lsr-id: %s:%u\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
+
     if (_transports.count(key) == 0 || _fsms.count(key) != 0) {
         log_warn("create-s called when no hello from remote, or session already exist.\n");
         return;
@@ -632,6 +636,8 @@ void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
         log_fatal("setsockopt(): %s.\n", strerror(errno));
         return;
     }
+
+    log_info("new tcp connection to %s:%u\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
 
     LdpFsm *session = new LdpFsm(this);
 

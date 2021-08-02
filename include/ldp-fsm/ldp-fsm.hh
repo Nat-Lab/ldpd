@@ -9,7 +9,7 @@
 namespace ldpd {
     
 enum LdpSessionState {
-    Invalid = -1, Initialized, OpenReceived, OpenSent, Operational
+    Invalid = 0, Initialized, OpenReceived, OpenSent, Operational
 };
 
 class LdpFsm {
@@ -36,6 +36,8 @@ public:
 private:
     void fillPduHeader(LdpPdu &to) const;
     void createInitPdu(LdpPdu &to);
+
+    void changeState(LdpSessionState newState);
 
     uint32_t _neighId;
     uint16_t _neighLs;

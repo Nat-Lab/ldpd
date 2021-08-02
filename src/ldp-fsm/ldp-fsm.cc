@@ -7,6 +7,10 @@
 
 namespace ldpd {
 
+const char *LdpSessionStateText[] = {
+    "Invalid", "Initialized", "OpenReceived", "OpenSent", "Operational"
+};    
+
 LdpFsm::LdpFsm(Ldpd *ldpd) {
     _ldpd = ldpd;
     _state = Initialized;
@@ -20,24 +24,23 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
     ssize_t parsed_len = pdu.parse(packet, size);
 
     if (parsed_len < 0) {
-        _state = LdpSessionState::Invalid;
+        changeState(LdpSessionState::Invalid);
         // todo: send notification
         return parsed_len;
     }
 
     for (const LdpMessage *msg : pdu.getMessages()) {
         if (_state == LdpSessionState::Invalid) {
-            log_fatal("this fsm should be deleted and the tcp session should be closed.\n");
-            _state = LdpSessionState::Invalid;
+            log_fatal("(%s:%u) this fsm should be deleted and the tcp session should be closed.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+            changeState(LdpSessionState::Invalid);
             // todo: send notification
             return -1;
         }
 
         if (_state == Initialized) {
             if (msg->getType() != LDP_MSGTYPE_INITIALIZE) {
-                log_error("got message of type 0x%.4x in init state.\n", msg->getType());
-                log_debug("state: Initialized -> Invalid.\n");
-                _state = LdpSessionState::Invalid;
+                log_error("(%s:%u) got message of type 0x%.4x in init state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
+                changeState(LdpSessionState::Invalid);
                 // todo: send notification
                 return -1;
             }
@@ -52,37 +55,37 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             ssize_t rslt = send(init);
 
             if (rslt < 0) {
-                _state = LdpSessionState::Invalid;
+                changeState(LdpSessionState::Invalid);
                 return rslt;
             }
 
             rslt = sendKeepalive();
 
             if (rslt < 0) {
-                _state = LdpSessionState::Invalid;
+                changeState(LdpSessionState::Invalid);
                 return rslt;
             }
 
-            _state = OpenReceived;
+            changeState(LdpSessionState::OpenReceived);
             continue;
         }
 
         if (_state == OpenReceived) {
             if (msg->getType() != LDP_MSGTYPE_KEEPALIVE) {
-                log_error("got message of type 0x%.4x in open-received state.\n", msg->getType());
-                _state = LdpSessionState::Invalid;
+                log_error("(%s:%u) got message of type 0x%.4x in open-received state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
+                changeState(LdpSessionState::Invalid);
                 // todo: send notification
                 return -1;
             }
 
-            _state = Operational;
+            changeState(LdpSessionState::Operational);
             continue;
         }
 
         if (_state == OpenSent) {
             if (msg->getType() != LDP_MSGTYPE_INITIALIZE) {
-                log_error("got message of type 0x%.4x in open-sent state.\n", msg->getType());
-                _state = LdpSessionState::Invalid;
+                log_error("(%s:%u) got message of type 0x%.4x in open-sent state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
+                changeState(LdpSessionState::Invalid);
                 // todo: send notification
                 return -1;
             }
@@ -90,25 +93,26 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             ssize_t rslt = sendKeepalive();
 
             if (rslt < 0) {
-                _state = LdpSessionState::Invalid;
+                changeState(LdpSessionState::Invalid);
                 return rslt;
             }
 
-            _state = LdpSessionState::OpenReceived;
+            changeState(LdpSessionState::OpenReceived);
             continue;
         }
 
         if (_state == Operational) {
             ssize_t rslt = _ldpd->handleMessage(this, msg);
+
             if (rslt < 0) {
-                _state = Invalid;
+                changeState(LdpSessionState::Invalid);
                 return rslt;
             }
 
-            return 0;
+            continue;
         }
 
-        log_fatal("fsm in invalid state: %d\n", _state);
+        log_fatal("(%s:%u) fsm in invalid state: %d\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, _state);
         return -1;
     }
 
@@ -128,11 +132,11 @@ ssize_t LdpFsm::init(uint32_t neighId, uint16_t neighLabelSpace) {
     ssize_t rslt = send(init);
 
     if (rslt < 0) {
-        _state = LdpSessionState::Invalid;
+        changeState(LdpSessionState::Invalid);
         return rslt;
     }
 
-    _state = LdpSessionState::OpenSent;
+    changeState(LdpSessionState::OpenSent);
 
     return 0;
 }
@@ -165,9 +169,9 @@ ssize_t LdpFsm::send(LdpPdu &pdu) {
 
     ssize_t res = pdu.write(buffer, len);
     if (res < 0) {
-        log_fatal("failed to write pdu.\n");
+        log_fatal("(%s:%u) failed to write pdu.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
         // send notify?
-        _state = LdpSessionState::Invalid;
+        changeState(LdpSessionState::Invalid);
         return res;
     }
 
@@ -219,8 +223,14 @@ void LdpFsm::createInitPdu(LdpPdu &to) {
 
 void LdpFsm::tick() {
     if (_state == LdpSessionState::Operational) {
+        // fixme: local hold/keep in fsm
         sendKeepalive();
     }
+}
+
+void LdpFsm::changeState(LdpSessionState newState) {
+    log_debug("(%s:%u) changing state %s -> %s\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, LdpSessionStateText[_state], LdpSessionStateText[newState]);
+    _state = newState;
 }
 
 }
