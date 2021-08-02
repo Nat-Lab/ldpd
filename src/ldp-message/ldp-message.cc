@@ -116,10 +116,8 @@ ssize_t LdpMessage::parse(const uint8_t *from, size_t buf_sz) {
 
     if (_type & 0b1000000000000000) {
         _unknown = true;
-        _type |= 0b0111111111111111;
+        _type &= 0b0111111111111111;
     }
-
-
 
     while (msg_len > 0) {
         LdpRawTlv *tlv = new LdpRawTlv();

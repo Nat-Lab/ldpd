@@ -12,3 +12,4 @@
 #include "ldp-tlv/ldp-ipv4-transport-address-tlv-value.hh"
 #include "ldp-tlv/ldp-common-session-params-tlv-value.hh"
 #include "ldp-tlv/ldp-config-seq-tlv-value.hh"
+#include "ldp-tlv/ldp-status-tlv-value.hh"
