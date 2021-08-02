@@ -16,8 +16,7 @@ LdpFsm::LdpFsm(Ldpd *ldpd, uint16_t labelSpace, uint32_t neighborId, uint16_t ne
 }
 
 LdpFsm::~LdpFsm() {
-    _ldpd->shutdown(this);
-    _ldpd->freeTransmitHandler(this);
+    _ldpd->shutdownSession(this);
 }
 
 ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
