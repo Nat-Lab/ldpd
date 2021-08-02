@@ -167,7 +167,13 @@ void Ldpd::tick() {
     for (std::map<uint64_t, time_t>::iterator hello = _hellos.begin(); hello != _hellos.end(); ) {
         if (_now - hello->second > getHoldTime(hello->first)) {
             uint32_t nei_id = (uint32_t) (hello->first >> sizeof(uint16_t));
+
             log_info("hello adj with %s removed - hold expired.\n", inet_ntoa(*(struct in_addr *) &nei_id));
+
+            if (_holds.count(hello->first)) {
+                _holds[hello->first] = 0xffff;
+            }
+
             hello = _hellos.erase(hello);
         } else {
             ++hello;
@@ -176,7 +182,7 @@ void Ldpd::tick() {
 
     // todo: check where each peer at which iface & send out only on those iface?
     for (std::pair<uint64_t, uint16_t> hold : _holds) {
-        if (_last_hello < _now && hold.second > _now - _last_hello - 10) {
+        if (_last_hello < _now && _now - _last_hello > hold.second / 2) {
             sendHello();
         }
     }
