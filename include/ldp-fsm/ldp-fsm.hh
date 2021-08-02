@@ -43,11 +43,8 @@ private:
 
     uint32_t _neighId;
     uint16_t _neighLs;
-    uint16_t _localLs;
     LdpSessionState _state;
     Ldpd *_ldpd;
-
-    uint32_t _msgId;
 };
 
 }

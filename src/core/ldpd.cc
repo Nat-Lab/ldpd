@@ -13,14 +13,16 @@
 
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, Router *router) : _fsms(), _tx_handlers(), _fds(), _hellos(), _transports() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _tx_handlers(), _fds(), _hellos(), _transports() {
     _running = false;
     _id = routerId;
+    _space = labelSpace;
     _transport = _id;
 
     _hold = 15;
     _hello = 5;
     _keep = 45;
+    _ifscan = 300;
 
     _tfd = -1;
     _ufd = -1;
@@ -29,6 +31,10 @@ Ldpd::Ldpd(uint32_t routerId, Router *router) : _fsms(), _tx_handlers(), _fds(),
     _now = time(NULL);
 
     _router = router;
+
+    _msg_id = 0;
+
+    scanInterfaces();
 }
 
 Ldpd::~Ldpd() {
@@ -42,9 +48,8 @@ int Ldpd::start() {
     }
 
     bool transport_local = false;
-    std::vector<Interface> ifaces = _router->getInterfaces();
 
-    for (const Interface &iface : ifaces) {
+    for (const Interface &iface : _ifaces) {
         for (const InterfaceAddress &addr : iface.addresses) {
             if (addr.address == _transport) {
                 transport_local = true;
@@ -136,6 +141,14 @@ int Ldpd::stop() {
 void Ldpd::tick() {
     _now = time(nullptr);
 
+    if (_now - _last_hello > _hello) {
+        sendHello();
+    }
+
+    if (_now - _last_scan > _ifscan) {
+        scanInterfaces();
+    }
+
     // todo: other stuff, send hello, keepalive, etc.
 }
 
@@ -197,6 +210,14 @@ uint32_t Ldpd::getRouterId() const {
     return _id;
 }
 
+uint32_t Ldpd::getNextMessageId() {
+    return ++_msg_id;
+}
+
+uint16_t Ldpd::getLabelSpace() const {
+    return _space;
+}
+
 uint32_t Ldpd::getTransportAddress() const {
     return _transport;
 }
@@ -250,6 +271,15 @@ void Ldpd::handleHello() {
         return;
     }
 
+    // check if msg is from self
+    for (const Interface &iface : _ifaces) {
+        for (const InterfaceAddress &addr : iface.addresses) {
+            if (addr.address == remote.sin_addr.s_addr) {
+                return;
+            }
+        }
+    }
+
     LdpPdu pdu = LdpPdu();
 
     ssize_t res = pdu.parse(buffer, len);
@@ -268,6 +298,11 @@ void Ldpd::handleHello() {
 
     uint32_t nei_id = pdu.getRouterId();
     uint16_t nei_ls = pdu.getLabelSpace();
+
+    if (nei_id == _id) {
+        log_error("invalid pdu from %s: they have the same router-id as us.\n", inet_ntoa(remote.sin_addr));
+        return;
+    }
 
     uint64_t key = LDP_KEY(nei_id, nei_ls);
 
@@ -414,6 +449,64 @@ void Ldpd::handleSession(int fd, LdpFsm *session) {
         offset += ret;
         len -= ret;
     }
+}
+
+void Ldpd::sendHello() {
+    struct sockaddr_in remote;
+    memset(&remote, 0, sizeof(remote));
+
+    remote.sin_family = AF_INET;
+    remote.sin_addr.s_addr = htonl(INADDR_ALLRTRS_GROUP);
+    remote.sin_port = htons(LDP_PORT);
+
+    socklen_t addrlen = sizeof(remote);
+
+    LdpPdu pdu = LdpPdu();
+    
+    pdu.setRouterId(_id);
+    pdu.setLabelSpace(_space);
+
+    LdpMessage *hello = new LdpMessage();
+
+    LdpRawTlv *common = new LdpRawTlv();
+    LdpCommonHelloParamsTlvValue common_val = LdpCommonHelloParamsTlvValue();
+    common_val.setHoldTime(_hold);
+    common->setValue(&common_val);
+
+    LdpRawTlv *ta = new LdpRawTlv();
+    LdpIpv4TransportAddressTlvValue ta_val = LdpIpv4TransportAddressTlvValue();
+    ta_val.setAddress(_transport);
+    ta->setValue(&ta_val);
+
+    hello->setType(LDP_MSGTYPE_HELLO);
+    hello->addTlv(common);
+    hello->addTlv(ta);
+    hello->setId(getNextMessageId());
+    hello->recalculateLength();
+
+    pdu.addMessage(hello);
+    pdu.recalculateLength();
+
+    size_t len = pdu.length();
+    
+    uint8_t *buffer = (uint8_t *) malloc(len);
+
+    pdu.write(buffer, len);
+
+    ssize_t res = sendto(_ufd, buffer, len, 0, (struct sockaddr *) &remote, addrlen);
+
+    _last_hello = _now;
+
+    if (res < 0) {
+        log_error("sendto(): %s\n", strerror(errno));
+    }
+}
+
+void Ldpd::scanInterfaces() {
+    log_info("scanning interfaces...\n");
+    _last_scan = _now;
+    _ifaces = _router->getInterfaces();
+    log_info("ok.\n");
 }
 
 }

@@ -21,7 +21,7 @@ class LdpFsm;
 
 class Ldpd {
 public:
-    Ldpd(uint32_t routerId, Router *router);
+    Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router);
     ~Ldpd();
 
     int start();
@@ -30,8 +30,11 @@ public:
     void run();
 
     uint32_t getRouterId() const;
+    uint16_t getLabelSpace() const;
     uint32_t getTransportAddress() const;
     uint16_t getKeepaliveTimer() const;
+
+    uint32_t getNextMessageId();
 
     void setTransportAddress(uint32_t address);
     void setKeepaliveTimer(uint16_t timer);
@@ -48,13 +51,20 @@ public:
 
 private:
 
+    void scanInterfaces();
+
     void handleSession();
     void handleSession(int fd, LdpFsm *session);
     void handleHello();
+
+    void sendHello();
     void createSession(uint32_t nei_id, uint16_t nei_ls);
 
     uint32_t _id;
+    uint16_t _space;
     uint32_t _transport;
+
+    uint32_t _msg_id;
 
     bool _running;
 
@@ -73,13 +83,20 @@ private:
     // transport addresses leared from hellos, FIXME: what if another lsr w/ same id?
     std::map<uint64_t, uint32_t> _transports;
 
+    // interface cache
+    std::vector<Interface> _ifaces;
+
     // timers
     uint16_t _hello;
     uint16_t _keep;
     uint16_t _hold;
+    uint16_t _ifscan;
 
     // time last hello is sent out
     time_t _last_hello;
+
+    // time last interfaces scan
+    time_t _last_scan;
 
     // time now.
     time_t _now;

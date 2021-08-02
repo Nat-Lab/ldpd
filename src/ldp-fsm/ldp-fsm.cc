@@ -12,7 +12,6 @@ LdpFsm::LdpFsm(Ldpd *ldpd) {
     _state = Initialized;
     _neighId = 0;
     _neighLs = 0;
-    _localLs = 0;
 }
 
 ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
@@ -155,7 +154,7 @@ uint32_t LdpFsm::getLocalId() const {
 }
 
 uint16_t LdpFsm::getLocalLabelSpace() const {
-    return _localLs;
+    return _ldpd->getLabelSpace();
 }
 
 uint32_t LdpFsm::getNeighborId() const {
@@ -185,7 +184,7 @@ ssize_t LdpFsm::send(LdpPdu &pdu) {
 
 void LdpFsm::fillPduHeader(LdpPdu &pdu) const {
     pdu.setRouterId(_ldpd->getRouterId());
-    pdu.setLabelSpace(_localLs);
+    pdu.setLabelSpace(_ldpd->getLabelSpace());
     pdu.recalculateLength();
 }
 
@@ -195,7 +194,7 @@ ssize_t LdpFsm::sendKeepalive() {
     LdpMessage *keep = new LdpMessage();
 
     keep->setType(LDP_MSGTYPE_KEEPALIVE);
-    keep->setId(++_msgId);
+    keep->setId(_ldpd->getNextMessageId());
     keep->recalculateLength();
 
     pdu.addMessage(keep);
@@ -211,7 +210,7 @@ void LdpFsm::addInitTlv(LdpPdu &to) {
     LdpMessage *init = new LdpMessage();
 
     init->setType(LDP_MSGTYPE_INITIALIZE);
-    init->setId(++_msgId);
+    init->setId(_ldpd->getNextMessageId());
     
     LdpCommonSessionParamsTlvValue session = LdpCommonSessionParamsTlvValue();
 

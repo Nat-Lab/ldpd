@@ -221,6 +221,11 @@ ssize_t LdpPdu::parse(const uint8_t *from, size_t msg_sz) {
     GETVAL_S(ptr, buf_remaining, uint32_t, _routerId, , -1);
     GETVAL_S(ptr, buf_remaining, uint16_t, _labelSpace, ntohs, -1);
 
+    if (_version != LDP_VERSION) {
+        log_fatal("unknow ldp version: %u\n", _version);
+        return -1;
+    }
+
     size_t msgs_len = _length - sizeof(_routerId) - sizeof(_labelSpace);
 
     if (msgs_len > buf_remaining) {
