@@ -13,7 +13,7 @@
 
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _transports(), _holds() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _holds(), _transports() {
     _running = false;
     _id = routerId;
     _space = labelSpace;
@@ -283,7 +283,101 @@ void Ldpd::setKeepaliveTimer(uint16_t timer) {
 }
 
 ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
-    return 0;
+    uint32_t nei_id = from->getNeighborId();
+    const char *nei_id_str = inet_ntoa(*(struct in_addr *) &(nei_id));
+
+    if (msg->getType() == LDP_MSGTYPE_NOTIFICATION) {
+        log_info("got notification from %s.\n", nei_id_str);
+
+        const LdpRawTlv *status = msg->getTlv(LDP_TLVTYPE_STATUS);
+
+        if (status == nullptr) {
+            log_error("notification from %s does not have a status tlv.\n", nei_id_str);
+            from->sendNotification(msg->getId(), 0, LDP_SC_MISSING_MSG_PARAM);
+            return -1;
+        }
+
+        LdpStatusTlvValue *status_val = (LdpStatusTlvValue *) status->getParsedValue();
+
+        if (status_val == nullptr) {
+            log_error("cannot understand the status tlv in notification from %s.\n", nei_id_str);
+            from->sendNotification(msg->getId(), status->getType(), LDP_SC_MALFORMED_TLV_VAL);
+            return -1;
+        }
+
+        log_info("status code: %u (%s)\n", status_val->getStatusCode(), status_val->getStatusCodeText());
+
+        if (status_val->fatal()) {
+            log_error("the notification states fatal error - shutthing down session.\n");
+            return -1;
+        }
+
+        // todo
+
+        delete status_val;
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_HELLO) {
+        log_error("got hello from ldp session with %s (the tcp one), what?\n", nei_id_str);
+        from->sendNotification(msg->getId(), 0, LDP_SC_SHUTDOWN);
+        return -1;
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_INITIALIZE) {
+        log_error("got init from ldp session with %s, but session is already operational.\n", nei_id_str);
+        from->sendNotification(msg->getId(), 0, LDP_SC_SHUTDOWN);
+        return -1;
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_KEEPALIVE) {
+        log_warn("got keepalive from session with %s - this should have been handlded by the fsm.\n", nei_id_str);
+        return msg->length();
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_ADDRESS) { // todo
+        log_debug("got address list from ldp session with %s.\n", nei_id_str);
+
+        return msg->length();
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_ADDRESS_WITHDRAW) { // todo
+        log_debug("got address withdraw from ldp session with %s.\n", nei_id_str);
+
+        return msg->length();
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) { // todo
+        log_debug("got label mapping from ldp session with %s.\n", nei_id_str);
+
+        return msg->length();
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_LABEL_REQUEST) { // todo
+        log_debug("got label request from ldp session with %s.\n", nei_id_str);
+
+        return msg->length();
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) { // todo
+        log_debug("got label withdraw from ldp session with %s.\n", nei_id_str);
+
+        return msg->length();
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_LABEL_RELEASE) { // todo
+        log_debug("got label release from ldp session with %s.\n", nei_id_str);
+
+        return msg->length();
+    }
+
+    if (msg->getType() == LDP_MSGTYPE_LABEL_ABORT) { // todo
+        log_debug("got label abort from ldp session with %s.\n", nei_id_str);
+
+        return msg->length();
+    }
+
+    from->sendNotification(msg->getId(), 0, LDP_SC_UNKNOWN_MSG_TYPE);
+    return -1;
 }
 
 void Ldpd::shutdownSession(LdpFsm* of, int32_t code, uint32_t msgid, uint16_t msgtype) {

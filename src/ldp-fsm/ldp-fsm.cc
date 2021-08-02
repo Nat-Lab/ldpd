@@ -26,6 +26,8 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
 
     ssize_t parsed_len = pdu.parse(packet, size);
 
+    const char *nei_id_str = inet_ntoa(*(struct in_addr *) &_neighId);
+
     _last_recv = _ldpd->now();
 
     if (parsed_len < 0) {
@@ -36,14 +38,14 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
 
     for (const LdpMessage *msg : pdu.getMessages()) {
         if (_state == LdpSessionState::Invalid) {
-            log_fatal("(%s:%u) this fsm should be deleted and the tcp session should be closed.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+            log_fatal("(%s:%u) this fsm should be deleted and the tcp session should be closed.\n", nei_id_str, _neighLs);
             changeState(LdpSessionState::Invalid);
             return -1;
         }
 
         if (_state == Initialized) {
             if (msg->getType() != LDP_MSGTYPE_INITIALIZE) {
-                log_error("(%s:%u) got message of type 0x%.4x in init state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
+                log_error("(%s:%u) got message of type 0x%.4x in init state.\n", nei_id_str, _neighLs, msg->getType());
                 changeState(LdpSessionState::Invalid);
                 sendNotification(0, 0, LDP_SC_SHUTDOWN);
                 return -1;
@@ -78,7 +80,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
 
         if (_state == OpenReceived) {
             if (msg->getType() != LDP_MSGTYPE_KEEPALIVE) {
-                log_error("(%s:%u) got message of type 0x%.4x in open-received state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
+                log_error("(%s:%u) got message of type 0x%.4x in open-received state.\n", nei_id_str, _neighLs, msg->getType());
                 changeState(LdpSessionState::Invalid);
                 sendNotification(0, 0, LDP_SC_SHUTDOWN);
                 return -1;
@@ -90,7 +92,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
 
         if (_state == OpenSent) {
             if (msg->getType() != LDP_MSGTYPE_INITIALIZE) {
-                log_error("(%s:%u) got message of type 0x%.4x in open-sent state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
+                log_error("(%s:%u) got message of type 0x%.4x in open-sent state.\n", nei_id_str, _neighLs, msg->getType());
                 changeState(LdpSessionState::Invalid);
                 sendNotification(0, 0, LDP_SC_SHUTDOWN);
                 return -1;
@@ -127,7 +129,8 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             continue;
         }
 
-        log_fatal("(%s:%u) fsm in invalid state: %d\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, _state);
+        sendNotification(0, 0, LDP_SC_INTERNAL_ERROR);
+        log_fatal("(%s:%u) fsm in invalid state: %d\n", nei_id_str, _neighLs, _state);
         return -1;
     }
 
@@ -266,13 +269,21 @@ void LdpFsm::createInitPdu(LdpPdu &to) {
 
 int LdpFsm::processInit(const LdpMessage *init) {
     const LdpRawTlv *session = init->getTlv(LDP_TLVTYPE_COMMON_SESSION);
+    const char *nei_id_str = inet_ntoa(*(struct in_addr *) &(_neighId));
 
     if (session == nullptr) {
-        log_error("(%s:%u) common session params tlv not found in init msg.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+        sendNotification(init->getId(), 0, LDP_SC_MISSING_MSG_PARAM);
+        log_error("(%s:%u) common session params tlv not found in init msg.\n", nei_id_str, _neighLs);
         return -1;
     }
 
     LdpCommonSessionParamsTlvValue *params = (LdpCommonSessionParamsTlvValue  *) session->getParsedValue();
+
+    if (params == nullptr) {
+        sendNotification(init->getId(), 0, LDP_SC_MALFORMED_TLV_VAL);
+        log_error("(%s:%u) cannot understand common session param tlv value.\n", nei_id_str, _neighLs);
+        return -1;
+    }
 
     if (params->loopDetection()) { // todo
         changeState(LdpSessionState::Invalid);
@@ -286,7 +297,7 @@ int LdpFsm::processInit(const LdpMessage *init) {
     if (keep == 0) {
         changeState(LdpSessionState::Invalid);
         sendNotification(init->getId(), params->getType(), LDP_SC_BAD_KEEPALIVE);
-        log_error("(%s:%u) sent a invalid keepalive timer.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+        log_error("(%s:%u) sent a invalid keepalive timer.\n", nei_id_str, _neighLs);
         return -1;
     }
 
@@ -302,11 +313,13 @@ int LdpFsm::processInit(const LdpMessage *init) {
     if (id != _ldpd->getRouterId() || space != _ldpd->getLabelSpace()) {
         changeState(LdpSessionState::Invalid);
         sendNotification(init->getId(), 0, LDP_SC_SESSION_REJ_NOHELLO);
-        log_error("(%s:%u) target is not us.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+        log_error("(%s:%u) target is not us.\n", nei_id_str, _neighLs);
         return -1;
     }
 
-    log_debug("(%s:%u) session params: keep = %u\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, _keep);
+    log_debug("(%s:%u) session params: keep = %u\n", nei_id_str, _neighLs, _keep);
+
+    return 0;
 }
 
 void LdpFsm::tick() {
