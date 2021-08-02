@@ -87,16 +87,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
                 return -1;
             }
 
-            LdpPdu init = LdpPdu();
-            createInitPdu(init);
-            ssize_t rslt = send(init);
-
-            if (rslt < 0) {
-                _state = LdpSessionState::Invalid;
-                return rslt;
-            }
-
-            rslt = sendKeepalive();
+            ssize_t rslt = sendKeepalive();
 
             if (rslt < 0) {
                 _state = LdpSessionState::Invalid;
@@ -113,6 +104,8 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
                 _state = Invalid;
                 return rslt;
             }
+
+            return 0;
         }
 
         log_fatal("fsm in invalid state: %d\n", _state);
@@ -122,7 +115,10 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
     return parsed_len;
 }
 
-ssize_t LdpFsm::step() {
+ssize_t LdpFsm::init(uint32_t neighId, uint16_t neighLabelSpace) {
+    _neighId = neighId;
+    _neighLs = neighLabelSpace;
+
     if (_state != LdpSessionState::Initialized) {
         return 0;
     }
@@ -219,6 +215,12 @@ void LdpFsm::createInitPdu(LdpPdu &to) {
     to.addMessage(init);
 
     fillPduHeader(to);
+}
+
+void LdpFsm::tick() {
+    if (_state == LdpSessionState::Operational) {
+        sendKeepalive();
+    }
 }
 
 }

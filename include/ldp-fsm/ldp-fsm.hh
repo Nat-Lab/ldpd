@@ -18,7 +18,7 @@ public:
 
     ssize_t receive(const uint8_t *packet, size_t size);
 
-    ssize_t step();
+    ssize_t init(uint32_t neighId, uint16_t neighLabelSpace);
 
     LdpSessionState getState() const;
 
@@ -30,6 +30,8 @@ public:
 
     ssize_t send(LdpPdu &pdu);
     ssize_t sendKeepalive();
+
+    void tick();
 
 private:
     void fillPduHeader(LdpPdu &to) const;

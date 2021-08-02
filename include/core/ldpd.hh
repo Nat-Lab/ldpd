@@ -75,6 +75,9 @@ private:
     // hello adjacencies - key is (lsrid << 16 + labelspace), value is last hello time.
     std::map<uint64_t, time_t> _hellos;
 
+    // hold timers for neighs
+    std::map<uint64_t, time_t> _holds;
+
     // transport addresses leared from hellos, FIXME: what if another lsr w/ same id?
     std::map<uint64_t, uint32_t> _transports;
 

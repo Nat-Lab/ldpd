@@ -13,7 +13,7 @@
 
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _transports() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _transports(), _holds() {
     _running = false;
     _id = routerId;
     _space = labelSpace;
@@ -144,6 +144,9 @@ int Ldpd::stop() {
     }
 
     _fsms.clear();
+    _holds.clear();
+    _fds.clear();
+    _transports.clear();
 
     _running = false;
 
@@ -159,6 +162,10 @@ void Ldpd::tick() {
 
     if (_now - _last_scan > _ifscan) {
         scanInterfaces();
+    }
+
+    for (std::pair<uint64_t, LdpFsm *> fsm : _fsms) {
+        fsm.second->tick();
     }
 
     // todo: other stuff, send hello, keepalive, etc.
@@ -254,11 +261,18 @@ void Ldpd::setKeepaliveTimer(uint16_t timer) {
 }
 
 ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
-    return -1;
+    return 0;
 }
 
 void Ldpd::shutdownSession(LdpFsm* of) {
-
+    for (std::pair<int, LdpFsm *> _fd : _fds) {
+        if (_fd.second == of) {
+            log_info("closing fd %d.\n", _fd.first);
+            // TODO: send notify
+            
+            close(_fd.first);
+        }
+    }
 }
 
 void Ldpd::removeSession(LdpFsm* of) {
@@ -275,8 +289,10 @@ void Ldpd::removeSession(LdpFsm* of) {
         }
     }
 
+    uint64_t key = 0;
     for (; sit != _fsms.end(); ++sit) {
         if (sit->second == of) {
+            key = sit->first;
             if(!fd_del) {
                 delete sit->second;
             }
@@ -284,6 +300,10 @@ void Ldpd::removeSession(LdpFsm* of) {
             break;
         }
     }
+
+    uint32_t nei_id = (uint32_t) (key >> sizeof(uint16_t));
+
+    log_info("session with %s removed.\n", inet_ntoa(*(struct in_addr *) &nei_id));
 }
 
 void Ldpd::handleHello() {
@@ -618,7 +638,7 @@ void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
     _fsms[key] = session;
     _fds[fd] = session;
 
-    session->step();
+    session->init(nei_id, nei_ls);
 }
 
 void Ldpd::scanInterfaces() {
