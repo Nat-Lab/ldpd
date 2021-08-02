@@ -286,11 +286,13 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
     return 0;
 }
 
-void Ldpd::shutdownSession(LdpFsm* of) {
+void Ldpd::shutdownSession(LdpFsm* of, int32_t code, uint32_t msgid, uint16_t msgtype) {
     for (std::pair<int, LdpFsm *> _fd : _fds) {
         if (_fd.second == of) {
             log_info("closing fd %d.\n", _fd.first);
-            // TODO: send notify
+            if (code > 0) {
+                of->sendNotification(msgid, msgtype, (uint32_t) code);
+            }          
             
             close(_fd.first);
         }
@@ -489,7 +491,8 @@ void Ldpd::handleSession() {
         ssize_t ret = session->receive(buffer + offset, len);
 
         if (ret < 0 || session->getState() < LdpSessionState::OpenReceived) {
-            shutdownSession(session);
+            // if recv failed, or state changed, fsm has sent out notification. we don't need to send again.
+            shutdownSession(session, -1);
             removeSession(session);
             return;
         }
@@ -508,9 +511,7 @@ void Ldpd::handleSession() {
     if (_hellos.count(key) == 0 || _now - _hellos[key] > getHoldTime(key)) {
         log_warn("no hello from them or hold expired. rejecting.\n");
 
-        // TODO: send notify.
-
-        shutdownSession(session);
+        shutdownSession(session, LDP_SC_SESSION_REJ_NOHELLO);
         removeSession(session);
         return;
     }

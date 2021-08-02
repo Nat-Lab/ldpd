@@ -30,7 +30,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
 
     if (parsed_len < 0) {
         changeState(LdpSessionState::Invalid);
-        // todo: send notification
+        sendNotification(0, 0, LDP_SC_SHUTDOWN);
         return parsed_len;
     }
 
@@ -38,7 +38,6 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
         if (_state == LdpSessionState::Invalid) {
             log_fatal("(%s:%u) this fsm should be deleted and the tcp session should be closed.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
             changeState(LdpSessionState::Invalid);
-            // todo: send notification
             return -1;
         }
 
@@ -46,7 +45,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             if (msg->getType() != LDP_MSGTYPE_INITIALIZE) {
                 log_error("(%s:%u) got message of type 0x%.4x in init state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
                 changeState(LdpSessionState::Invalid);
-                // todo: send notification
+                sendNotification(0, 0, LDP_SC_SHUTDOWN);
                 return -1;
             }
 
@@ -54,7 +53,6 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             _neighId = pdu.getRouterId();
 
             if (processInit(msg) < 0) {
-                changeState(LdpSessionState::Invalid);
                 return -1;
             }
 
@@ -82,7 +80,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             if (msg->getType() != LDP_MSGTYPE_KEEPALIVE) {
                 log_error("(%s:%u) got message of type 0x%.4x in open-received state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
                 changeState(LdpSessionState::Invalid);
-                // todo: send notification
+                sendNotification(0, 0, LDP_SC_SHUTDOWN);
                 return -1;
             }
 
@@ -94,7 +92,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             if (msg->getType() != LDP_MSGTYPE_INITIALIZE) {
                 log_error("(%s:%u) got message of type 0x%.4x in open-sent state.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, msg->getType());
                 changeState(LdpSessionState::Invalid);
-                // todo: send notification
+                sendNotification(0, 0, LDP_SC_SHUTDOWN);
                 return -1;
             }
 
@@ -217,6 +215,32 @@ ssize_t LdpFsm::sendKeepalive() {
     return send(pdu);
 }
 
+ssize_t LdpFsm::sendNotification(uint32_t msgid, uint16_t msgtype, uint32_t code) {
+    LdpPdu pdu = LdpPdu();
+
+    LdpMessage *note = new LdpMessage();
+
+    note->setType(LDP_MSGTYPE_NOTIFICATION);
+    note->setId(_ldpd->getNextMessageId());
+    
+    LdpRawTlv *status = new LdpRawTlv();
+    status->setType(LDP_TLVTYPE_STATUS);
+
+    LdpStatusTlvValue status_val = LdpStatusTlvValue();
+    status_val.setMessageId(msgid);
+    status_val.setMessageType(msgtype);
+    status_val.setStatusCode(code);
+
+    status->setValue(&status_val);
+
+    note->addTlv(status);
+    note->recalculateLength();
+
+    pdu.addMessage(note);
+
+    return send(pdu);
+}
+
 void LdpFsm::createInitPdu(LdpPdu &to) {
     LdpMessage *init = new LdpMessage();
 
@@ -251,6 +275,8 @@ int LdpFsm::processInit(const LdpMessage *init) {
     LdpCommonSessionParamsTlvValue *params = (LdpCommonSessionParamsTlvValue  *) session->getParsedValue();
 
     if (params->loopDetection()) { // todo
+        changeState(LdpSessionState::Invalid);
+        sendNotification(init->getId(), params->getType(), LDP_SC_INTERNAL_ERROR);
         log_error("loop detection not yet implemented.\n");
         return -1;
     }
@@ -258,6 +284,8 @@ int LdpFsm::processInit(const LdpMessage *init) {
     uint16_t keep = params->getKeepaliveTime();
 
     if (keep == 0) {
+        changeState(LdpSessionState::Invalid);
+        sendNotification(init->getId(), params->getType(), LDP_SC_BAD_KEEPALIVE);
         log_error("(%s:%u) sent a invalid keepalive timer.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
         return -1;
     }
@@ -272,8 +300,9 @@ int LdpFsm::processInit(const LdpMessage *init) {
     delete params;
 
     if (id != _ldpd->getRouterId() || space != _ldpd->getLabelSpace()) {
+        changeState(LdpSessionState::Invalid);
+        sendNotification(init->getId(), 0, LDP_SC_SESSION_REJ_NOHELLO);
         log_error("(%s:%u) target is not us.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
-        // no us? todo: send notify
         return -1;
     }
 
@@ -288,7 +317,7 @@ void LdpFsm::tick() {
 
         if ((_ldpd->now() - _last_recv) > _keep) {
             log_error("(%s:%u) hold timer expired.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
-            // todo
+            _ldpd->shutdownSession(this, LDP_SC_KEEPALIVE_EXPIRED);
         }
     }
 }

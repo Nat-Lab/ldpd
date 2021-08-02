@@ -30,6 +30,7 @@ public:
 
     ssize_t send(LdpPdu &pdu);
     ssize_t sendKeepalive();
+    ssize_t sendNotification(uint32_t msgid, uint16_t msgtype, uint32_t code);
 
     void tick();
 

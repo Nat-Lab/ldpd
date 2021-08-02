@@ -2,6 +2,7 @@
 #define LDP_LDPD
 #include "ldp-message/ldp-message.hh"
 #include "abstraction/router.hh"
+#include "ldp-tlv/ldp-tlv.hh"
 #include <time.h>
 #include <stdint.h>
 #include <map>
@@ -45,7 +46,7 @@ public:
 
     std::vector<LdpFsm *> getSessions() const;
 
-    void shutdownSession(LdpFsm* of);
+    void shutdownSession(LdpFsm* of, int32_t code = LDP_SC_SHUTDOWN, uint32_t msgid = 0, uint16_t msgtype = 0);
     void removeSession(LdpFsm* of);
 
     void tick();
