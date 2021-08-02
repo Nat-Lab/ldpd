@@ -36,12 +36,16 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
         if (_state == Initialized) {
             if (msg->getType() != LDP_MSGTYPE_INITIALIZE) {
                 log_error("got message of type 0x%.4x in init state.\n", msg->getType());
+                log_debug("state: Initialized -> Invalid.\n");
                 _state = LdpSessionState::Invalid;
                 // todo: send notification
                 return -1;
             }
 
-            // todo: handle init msg
+            _neighLs = pdu.getLabelSpace();
+            _neighId = pdu.getRouterId();
+
+            // todo: handle tlvs in init
 
             LdpPdu init = LdpPdu();
             createInitPdu(init);
