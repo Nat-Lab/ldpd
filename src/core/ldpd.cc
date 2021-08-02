@@ -176,7 +176,7 @@ void Ldpd::tick() {
 
     // todo: check where each peer at which iface & send out only on those iface?
     for (std::pair<uint64_t, uint16_t> hold : _holds) {
-        if (hold.second > _now - _last_hello - 10) {
+        if (_last_hello < _now && hold.second > _now - _last_hello - 10) {
             sendHello();
         }
     }
