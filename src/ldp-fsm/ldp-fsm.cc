@@ -253,12 +253,13 @@ int LdpFsm::processInit(const LdpMessage *init) {
 
     uint16_t keep = params->getKeepaliveTime();
 
-    if (_keep > keep) {
-        _keep = keep;
+    if (keep == 0) {
+        log_error("(%s:%u) sent a invalid keepalive timer.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+        return -1;
     }
 
-    if (_keep == 0) {
-        _keep = 15;
+    if (_keep > keep) {
+        _keep = keep;
     }
 
     uint32_t id = params->getReceiverRouterId();
@@ -277,7 +278,7 @@ int LdpFsm::processInit(const LdpMessage *init) {
 
 void LdpFsm::tick() {
     if (_state == LdpSessionState::Operational) {
-        if ((_ldpd->now() - _last_send) > _keep / 2) {
+        if ((_ldpd->now() - _last_send) > _keep - 10) {
             sendKeepalive();
         }
 
