@@ -519,14 +519,14 @@ int Netlink::parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src) {
         return PARSE_SKIP;
     }
 
-    size_t lables_arr_len = RTA_PAYLOAD(mpls_info.getAttribute(MPLS_IPTUNNEL_DST));
+    size_t labels_arr_len = RTA_PAYLOAD(mpls_info.getAttribute(MPLS_IPTUNNEL_DST));
 
-    if (lables_arr_len % sizeof(uint32_t) != 0) {
+    if (labels_arr_len % sizeof(uint32_t) != 0) {
         log_error("mpls lbl arr %% sizeof(uint32_t) != 0, what?\n");
         return PARSE_SKIP;
     }
 
-    for (size_t i = 0; i < lables_arr_len/sizeof(uint32_t); ++i) {
+    for (size_t i = 0; i < labels_arr_len/sizeof(uint32_t); ++i) {
         dst.mpls_stack.push_back(ntohl(labels[i]) >> 12);
     }
 
@@ -577,14 +577,14 @@ int Netlink::parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src) {
 
     dst.mpls_encap = true;
 
-    size_t lables_arr_len = RTA_PAYLOAD(attrs.getAttribute(RTA_NEWDST));
+    size_t labels_arr_len = RTA_PAYLOAD(attrs.getAttribute(RTA_NEWDST));
 
-    if (lables_arr_len % sizeof(uint32_t) != 0) {
+    if (labels_arr_len % sizeof(uint32_t) != 0) {
         log_error("mpls lbl arr %% sizeof(uint32_t) != 0, what?\n");
         return PARSE_SKIP;
     }
 
-    for (size_t i = 0; i < lables_arr_len/sizeof(uint32_t); ++i) {
+    for (size_t i = 0; i < labels_arr_len/sizeof(uint32_t); ++i) {
         dst.mpls_stack.push_back(ntohl(labels[i]) >> 12);
     }
 
