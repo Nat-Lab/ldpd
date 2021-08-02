@@ -97,7 +97,9 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
                 return -1;
             }
 
-            // todo
+            if (processInit(msg) < 0) {
+                return -1;
+            }
 
             ssize_t rslt = sendKeepalive();
 
