@@ -307,8 +307,13 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
 
         log_info("status code: %u (%s)\n", status_val->getStatusCode(), status_val->getStatusCodeText());
 
+        if (status_val->getStatusCode() == LDP_SC_SHUTDOWN) {
+            // for shutdown msg - we should reply.
+            from->sendNotification(0, 0, LDP_SC_SHUTDOWN);
+        }
+
         if (status_val->fatal()) {
-            log_error("the notification states fatal error - shutthing down session.\n");
+            log_error("the notification states fatal error - shutting down session.\n");
             return -1;
         }
 
