@@ -272,7 +272,7 @@ int LdpFsm::processInit(const LdpMessage *init) {
         return -1;
     }
 
-    log_debug("(%s:%u) session params: keep = %u\n", _keep);
+    log_debug("(%s:%u) session params: keep = %u\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, _keep);
 }
 
 void LdpFsm::tick() {
