@@ -214,6 +214,10 @@ LdpTlvValue* LdpRawTlv::getParsedValue() const {
             val = new LdpGenericLabelTlvValue();
             break;
         }
+        case LDP_TLVTYPE_STATUS: {
+            val = new LdpStatusTlvValue();
+            break;
+        }
         case LDP_TLVTYPE_COMMON_HELLO: {
             val = new LdpCommonHelloParamsTlvValue();
             break;
