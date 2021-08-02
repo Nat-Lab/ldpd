@@ -77,7 +77,7 @@ int Ldpd::start() {
     _tfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (_tfd < 0) {
-        log_fatal("socket(): %s\n", strerror(errno));
+        log_fatal("socket(): %s.\n", strerror(errno));
         return 1;
     }
 
@@ -97,14 +97,14 @@ int Ldpd::start() {
     }
 
     if (listen(_tfd, LDP_TCP_BACKLOG) < 0) {
-        log_fatal("listen(): %s\n", strerror(errno));
+        log_fatal("listen(): %s.\n", strerror(errno));
         return 1;
     }
 
     _ufd = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (_ufd < 0) {
-        log_fatal("socket(): %s\n", strerror(errno));
+        log_fatal("socket(): %s.\n", strerror(errno));
         return 1;
     }
 
@@ -220,7 +220,7 @@ void Ldpd::run() {
         tick();
 
         if (ret < 0) {
-            log_error("select(): %s\n", strerror(errno));
+            log_error("select(): %s.\n", strerror(errno));
             continue;
         }
 
@@ -305,7 +305,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
             return -1;
         }
 
-        log_info("status code: %u (%s)\n", status_val->getStatusCode(), status_val->getStatusCodeText());
+        log_info("status code: %u (%s).\n", status_val->getStatusCode(), status_val->getStatusCodeText());
 
         if (status_val->getStatusCode() == LDP_SC_SHUTDOWN) {
             // for shutdown msg - we should reply.
@@ -441,12 +441,12 @@ void Ldpd::handleHello() {
     ssize_t len = recvfrom(_ufd, (void *) buffer, sizeof(buffer), 0, (struct sockaddr *) &remote, &addrlen);
 
     if (len < 0) {
-        log_warn("recvfrom(): %s\n", strerror(errno));
+        log_warn("recvfrom(): %s.\n", strerror(errno));
         return;
     }
 
     if (len == 0) {
-        log_warn("recvfrom(): got eof\n");
+        log_warn("recvfrom(): got eof.\n");
         return;
     }
 
@@ -464,14 +464,14 @@ void Ldpd::handleHello() {
     ssize_t res = pdu.parse(buffer, len);
 
     if (res < 0) {
-        log_info("invalid pdu from %s:%u (cannot understand)\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        log_info("invalid pdu from %s:%u (cannot understand).\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
         return;
     }
 
     const LdpMessage *hello = pdu.getMessage(LDP_MSGTYPE_HELLO);
 
     if (hello == nullptr) {
-        log_info("invalid pdu from %s:%u (no hello body)\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        log_info("invalid pdu from %s:%u (no hello body).\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
         return;
     }
 
@@ -488,14 +488,14 @@ void Ldpd::handleHello() {
     const LdpRawTlv *params = hello->getTlv(LDP_TLVTYPE_COMMON_HELLO);
 
     if (params == nullptr) {
-        log_info("invalid hello msg from %s:%u (no hello params tlv)\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        log_info("invalid hello msg from %s:%u (no hello params tlv).\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
         return;
     }
 
     LdpCommonHelloParamsTlvValue *params_val = (LdpCommonHelloParamsTlvValue *) params->getParsedValue();
 
     if (params_val == nullptr) {
-        log_info("invalid hello msg from %s:%u (cannot understand hello params tlv)\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        log_info("invalid hello msg from %s:%u (cannot understand hello params tlv).\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
         return;
     }
 
@@ -555,7 +555,7 @@ void Ldpd::handleSession() {
     int fd = accept(_tfd, (struct sockaddr *) &remote, &addrlen);
 
     if (fd < 0) {
-        log_warn("accept(): %s\n", strerror(errno));
+        log_warn("accept(): %s.\n", strerror(errno));
         return;
     }
 
@@ -564,7 +564,7 @@ void Ldpd::handleSession() {
         return;
     }
 
-    log_info("new tcp connection from %s:%u\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+    log_info("new tcp connection from %s:%u.\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
 
     uint8_t buffer[8192];
     ssize_t len = read(fd, buffer, sizeof(buffer));
@@ -572,12 +572,12 @@ void Ldpd::handleSession() {
     // FIXME: make sure it has atleast one full pdu?
 
     if (len < 0) {
-        log_warn("read(): %s\n", strerror(errno));
+        log_warn("read(): %s.\n", strerror(errno));
         return;
     }
 
     if (len == 0) {
-        log_warn("read(): got eof\n");
+        log_warn("read(): got eof.\n");
         return;
     }
 
@@ -603,7 +603,7 @@ void Ldpd::handleSession() {
     uint32_t nei_id = session->getNeighborId();
     uint16_t nei_space = session->getNeighborLabelSpace();
 
-    log_info("neigh lsr-id: %s:%u\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_space);
+    log_info("neigh lsr-id: %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_space);
 
     uint32_t key = LDP_KEY(nei_id, nei_space);
 
@@ -640,12 +640,12 @@ void Ldpd::handleSession(int fd) {
     // FIXME: make sure it has atleast one full pdu?
 
     if (len < 0) {
-        log_warn("read(): %s\n", strerror(errno));
+        log_warn("read(): %s.\n", strerror(errno));
         return;
     }
 
     if (len == 0) {
-        log_warn("read(): got eof\n");
+        log_error("read(): got eof - removing.\n");
         removeSession(session);
         return;
     }
@@ -723,7 +723,7 @@ void Ldpd::sendHello() {
     _last_hello = _now;
 
     if (res < 0) {
-        log_error("sendto(): %s\n", strerror(errno));
+        log_error("sendto(): %s.\n", strerror(errno));
     }
 }
 
@@ -742,7 +742,7 @@ ssize_t Ldpd::transmit(LdpFsm* by, const uint8_t *buffer, size_t len) {
 void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
     uint64_t key = LDP_KEY(nei_id, nei_ls);
 
-    log_info("creating new session with lsr-id: %s:%u\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
+    log_info("creating new session with lsr-id: %s:%u...\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
 
     if (_transports.count(key) == 0 || _fsms.count(key) != 0) {
         log_warn("create-s called when no hello from remote, or session already exist.\n");
@@ -752,7 +752,7 @@ void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (fd < 0) {
-        log_error("socket(): %s\n", strerror(errno));
+        log_error("socket(): %s.\n", strerror(errno));
         return;
     }
 
@@ -784,7 +784,7 @@ void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
         return;
     }
 
-    log_info("new tcp connection to %s:%u\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+    log_info("tcp connection to %s:%u established.\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
 
     LdpFsm *session = new LdpFsm(this);
 
@@ -795,10 +795,9 @@ void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
 }
 
 void Ldpd::scanInterfaces() {
-    log_info("scanning interfaces...\n");
+    log_debug("scanning interfaces...\n");
     _last_scan = _now;
     _ifaces = _router->getInterfaces();
-    log_info("ok.\n");
 }
 
 time_t Ldpd::now() const {

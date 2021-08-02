@@ -130,7 +130,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
         }
 
         sendNotification(0, 0, LDP_SC_INTERNAL_ERROR);
-        log_fatal("(%s:%u) fsm in invalid state: %d\n", nei_id_str, _neighLs, _state);
+        log_fatal("(%s:%u) fsm in invalid state: %d.\n", nei_id_str, _neighLs, _state);
         return -1;
     }
 
@@ -317,7 +317,7 @@ int LdpFsm::processInit(const LdpMessage *init) {
         return -1;
     }
 
-    log_debug("(%s:%u) session params: keep = %u\n", nei_id_str, _neighLs, _keep);
+    log_debug("(%s:%u) session params: keep = %u.\n", nei_id_str, _neighLs, _keep);
 
     return 0;
 }
@@ -336,7 +336,7 @@ void LdpFsm::tick() {
 }
 
 void LdpFsm::changeState(LdpSessionState newState) {
-    log_debug("(%s:%u) changing state %s -> %s\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, LdpSessionStateText[_state], LdpSessionStateText[newState]);
+    log_debug("(%s:%u) changing state %s -> %s.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs, LdpSessionStateText[_state], LdpSessionStateText[newState]);
     _state = newState;
 }
 
