@@ -115,6 +115,10 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
         }
 
         if (_state == Operational) {
+            if (msg->getType() == LDP_MSGTYPE_KEEPALIVE) {
+                continue;
+            }
+
             ssize_t rslt = _ldpd->handleMessage(this, msg);
 
             if (rslt < 0) {
