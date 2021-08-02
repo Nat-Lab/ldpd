@@ -54,6 +54,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             _neighId = pdu.getRouterId();
 
             if (processInit(msg) < 0) {
+                changeState(LdpSessionState::Invalid);
                 return -1;
             }
 
@@ -98,6 +99,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             }
 
             if (processInit(msg) < 0) {
+                changeState(LdpSessionState::Invalid);
                 return -1;
             }
 
@@ -255,7 +257,7 @@ int LdpFsm::processInit(const LdpMessage *init) {
         _keep = keep;
     }
 
-    if (_keep = 0) {
+    if (_keep == 0) {
         _keep = 15;
     }
 
@@ -269,6 +271,8 @@ int LdpFsm::processInit(const LdpMessage *init) {
         // no us? todo: send notify
         return -1;
     }
+
+    log_debug("(%s:%u) session params: keep = %u\n", _keep);
 }
 
 void LdpFsm::tick() {
