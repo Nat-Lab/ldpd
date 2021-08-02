@@ -10,6 +10,7 @@ int main() {
     ldpd::Ldpd ldpd = ldpd::Ldpd(rid, (ldpd::Router *) &rtr);
 
     ldpd.start();
+    ldpd.run();
 
     return 0;
 }
