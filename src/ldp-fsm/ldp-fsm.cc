@@ -16,12 +16,17 @@ LdpFsm::LdpFsm(Ldpd *ldpd) {
     _state = Initialized;
     _neighId = 0;
     _neighLs = 0;
+    _keep = ldpd->getKeepaliveTime();
+    _last_send = 0;
+    _last_recv = 0;
 }
 
 ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
     LdpPdu pdu = LdpPdu();
 
     ssize_t parsed_len = pdu.parse(packet, size);
+
+    _last_recv = _ldpd->now();
 
     if (parsed_len < 0) {
         changeState(LdpSessionState::Invalid);
@@ -48,7 +53,40 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             _neighLs = pdu.getLabelSpace();
             _neighId = pdu.getRouterId();
 
-            // todo: handle tlvs in init
+            const LdpRawTlv *session = msg->getTlv(LDP_TLVTYPE_COMMON_SESSION);
+
+            if (session == nullptr) {
+                log_error("(%s:%u) common session params tlv not found in init msg.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+                return -1;
+            }
+
+            LdpCommonSessionParamsTlvValue *params = (LdpCommonSessionParamsTlvValue  *) session->getParsedValue();
+
+            if (params->loopDetection()) { // todo
+                log_error("loop detection not yet implemented.\n");
+                return -1;
+            }
+
+            uint16_t keep = params->getKeepaliveTime();
+
+            if (_keep > keep) {
+                _keep = keep;
+            }
+
+            if (_keep = 0) {
+                _keep = 15;
+            }
+
+            uint32_t id = params->getReceiverRouterId();
+            uint32_t space = params->getReceiverLabelSpace();
+
+            delete params;
+
+            if (id != _ldpd->getRouterId() || space != _ldpd->getLabelSpace()) {
+                log_error("(%s:%u) target is not us.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+                // no us? todo: send notify
+                return -1;
+            }
 
             LdpPdu init = LdpPdu();
             createInitPdu(init);
@@ -175,6 +213,8 @@ ssize_t LdpFsm::send(LdpPdu &pdu) {
         return res;
     }
 
+    _last_send = _ldpd->now();
+
     return _ldpd->transmit(this, buffer, len);
 }
 
@@ -208,7 +248,7 @@ void LdpFsm::createInitPdu(LdpPdu &to) {
 
     session.setReceiverLabelSpace(_neighLs);
     session.setReceiverRouterId(_neighId);
-    session.setKeepaliveTime(_ldpd->getKeepaliveTimer());
+    session.setKeepaliveTime(_ldpd->getKeepaliveTime());
 
     LdpRawTlv *tlv = new LdpRawTlv();
     tlv->setValue(&session);
@@ -223,8 +263,14 @@ void LdpFsm::createInitPdu(LdpPdu &to) {
 
 void LdpFsm::tick() {
     if (_state == LdpSessionState::Operational) {
-        // fixme: local hold/keep in fsm
-        sendKeepalive();
+        if ((_ldpd->now() - _last_send) > _keep / 2) {
+            sendKeepalive();
+        }
+
+        if ((_ldpd->now() - _last_recv) > _keep) {
+            log_error("(%s:%u) hold timer expired.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+            // todo
+        }
     }
 }
 

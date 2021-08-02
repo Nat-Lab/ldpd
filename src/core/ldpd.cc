@@ -248,7 +248,7 @@ uint32_t Ldpd::getTransportAddress() const {
     return _transport;
 }
 
-uint16_t Ldpd::getKeepaliveTimer() const {
+uint16_t Ldpd::getKeepaliveTime() const {
     return _keep;
 }
 
@@ -447,6 +447,7 @@ void Ldpd::handleSession() {
         ssize_t ret = session->receive(buffer + offset, len);
 
         if (ret < 0 || session->getState() < LdpSessionState::OpenReceived) {
+            shutdownSession(session);
             removeSession(session);
             return;
         }
@@ -467,6 +468,7 @@ void Ldpd::handleSession() {
 
         // TODO: send notify.
 
+        shutdownSession(session);
         removeSession(session);
         return;
     }
@@ -510,7 +512,6 @@ void Ldpd::handleSession(int fd) {
     while (len > 0) {
         // FIXME: buffer read from fd may have .5 or 1.5 pkt - need to save partial pkt.
         ssize_t ret = session->receive(buffer + offset, len);
-
 
         if (ret < 0 || session->getState() == LdpSessionState::Invalid) {
             shutdownSession(session);
@@ -656,6 +657,10 @@ void Ldpd::scanInterfaces() {
     _last_scan = _now;
     _ifaces = _router->getInterfaces();
     log_info("ok.\n");
+}
+
+time_t Ldpd::now() const {
+    return _now;
 }
 
 }

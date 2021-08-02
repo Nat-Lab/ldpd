@@ -39,6 +39,9 @@ private:
 
     void changeState(LdpSessionState newState);
 
+    uint16_t _keep;
+    time_t _last_send, _last_recv;
+
     uint32_t _neighId;
     uint16_t _neighLs;
     LdpSessionState _state;

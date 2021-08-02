@@ -30,7 +30,7 @@ public:
     uint32_t getRouterId() const;
     uint16_t getLabelSpace() const;
     uint32_t getTransportAddress() const;
-    uint16_t getKeepaliveTimer() const;
+    uint16_t getKeepaliveTime() const;
 
     uint32_t getNextMessageId();
 
@@ -46,6 +46,8 @@ public:
     void removeSession(LdpFsm* of);
 
     void tick();
+
+    time_t now() const;
 
 private:
 
