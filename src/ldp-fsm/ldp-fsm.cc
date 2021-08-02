@@ -15,10 +15,6 @@ LdpFsm::LdpFsm(Ldpd *ldpd, uint16_t labelSpace, uint32_t neighborId, uint16_t ne
     _localLs = labelSpace;
 }
 
-LdpFsm::~LdpFsm() {
-    _ldpd->shutdownSession(this);
-}
-
 ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
     LdpPdu pdu = LdpPdu();
 
@@ -116,7 +112,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
         }
 
         if (_state == Operational) {
-            ssize_t rslt = _ldpd->handleMessage(this, _neighId, _neighLs, msg);
+            ssize_t rslt = _ldpd->handleMessage(this, msg);
             if (rslt < 0) {
                 _state = Invalid;
                 return rslt;
@@ -149,6 +145,8 @@ ssize_t LdpFsm::step() {
     }
 
     _state = LdpSessionState::OpenSent;
+
+    return 0;
 }
 
 LdpSessionState LdpFsm::getState() const {
@@ -210,6 +208,10 @@ ssize_t LdpFsm::sendKeepalive() {
     pdu.addMessage(keep);
 
     return send(pdu);
+}
+
+void LdpFsm::fillInitMessage(LdpPdu &to) {
+
 }
 
 void LdpFsm::addInitTlv(LdpPdu &to) {

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string>
 #include "core/ldpd.hh"
+#include "ldp-pdu/ldp-pdu.hh"
 
 namespace ldpd {
     
@@ -18,7 +19,6 @@ enum LdpSessionState {
 class LdpFsm {
 public:
     LdpFsm(Ldpd *ldpd, uint16_t localLabelSpace, uint32_t neighborId, uint16_t neighborLabelSpace);
-    ~LdpFsm();
 
     ssize_t receive(const uint8_t *packet, size_t size);
 
