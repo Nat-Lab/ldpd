@@ -28,7 +28,7 @@ Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _f
     _ufd = -1;
 
     _last_hello = 0;
-    _now = time(NULL);
+    _now = time(nullptr);
 
     _router = router;
 
@@ -164,11 +164,27 @@ void Ldpd::tick() {
         scanInterfaces();
     }
 
+    for (std::map<uint64_t, time_t>::iterator hello = _hellos.begin(); hello != _hellos.end(); ) {
+        if (_now - hello->second > getHoldTime(hello->first)) {
+            uint32_t nei_id = (uint32_t) (hello->first >> sizeof(uint16_t));
+            log_info("hello adj with %s removed - hold expired.\n", inet_ntoa(*(struct in_addr *) &nei_id));
+            hello = _hellos.erase(hello);
+        } else {
+            ++hello;
+        }
+    }
+
+    // todo: check where each peer at which iface & send out only on those iface?
+    for (std::pair<uint64_t, uint16_t> hold : _holds) {
+        if (hold.second > _now - _last_hello - 10) {
+            sendHello();
+        }
+    }
+
     for (std::pair<uint64_t, LdpFsm *> fsm : _fsms) {
         fsm.second->tick();
     }
 
-    // todo: other stuff, send hello, keepalive, etc.
 }
 
 void Ldpd::run() {
@@ -362,12 +378,32 @@ void Ldpd::handleHello() {
 
     uint64_t key = LDP_KEY(nei_id, nei_ls);
 
+    const LdpRawTlv *params = hello->getTlv(LDP_TLVTYPE_COMMON_HELLO);
+
+    if (params == nullptr) {
+        log_info("invalid hello msg from %s:%u (no hello params tlv)\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        return;
+    }
+
+    LdpCommonHelloParamsTlvValue *params_val = (LdpCommonHelloParamsTlvValue *) params->getParsedValue();
+
+    if (params_val == nullptr) {
+        log_info("invalid hello msg from %s:%u (cannot understand hello params tlv)\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        return;
+    }
+
+    _holds[key] = params_val->getHoldTime();
+
+    // TODO: targeted / req_targeted, gtsm
+
+    delete params_val;
+
     if (!_hellos.count(key) || _now - _hellos[key] > _hold) {
         log_info("got a new hello from %s:%u.\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
         log_info("their id: %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
     } 
 
-    _hellos[key] = time(NULL);
+    _hellos[key] = _now;
 
     const LdpRawTlv *ta_tlv = hello->getTlv(LDP_TLVTYPE_IPV4_TRANSPORT);
 
@@ -463,7 +499,7 @@ void Ldpd::handleSession() {
 
     uint32_t key = LDP_KEY(nei_id, nei_space);
 
-    if (_hellos.count(key) == 0 || _now - _hellos[key] > _hold) {
+    if (_hellos.count(key) == 0 || _now - _hellos[key] > getHoldTime(key)) {
         log_warn("no hello from them or hold expired. rejecting.\n");
 
         // TODO: send notify.
@@ -661,6 +697,20 @@ void Ldpd::scanInterfaces() {
 
 time_t Ldpd::now() const {
     return _now;
+}
+
+uint16_t Ldpd::getHoldTime(uint64_t of) {
+    if (_holds.count(of) == 0) {
+        return _hold;
+    }
+
+    uint16_t peer_hold = _holds[of];
+
+    if (peer_hold == 0) {
+        peer_hold = LDP_DEF_HELLO_HOLD;
+    }
+
+    return peer_hold < _hold ? peer_hold : _hold;
 }
 
 }

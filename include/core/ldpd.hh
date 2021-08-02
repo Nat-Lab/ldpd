@@ -11,6 +11,9 @@
 #define LDP_MAX_LBL 1048576
 #define LDP_PORT 646
 
+#define LDP_DEF_HELLO_HOLD 15
+#define LDP_DEF_THELLO_HOLD 45
+
 #define LDP_KEY(lsr_id, lbl_space) ((((uint64_t) lsr_id) << sizeof(uint16_t)) + lbl_space)
 
 namespace ldpd {
@@ -60,6 +63,8 @@ private:
     void sendHello();
     void createSession(uint32_t nei_id, uint16_t nei_ls);
 
+    uint16_t getHoldTime(uint64_t of);
+
     uint32_t _id;
     uint16_t _space;
     uint32_t _transport;
@@ -78,7 +83,7 @@ private:
     std::map<uint64_t, time_t> _hellos;
 
     // hold timers for neighs
-    std::map<uint64_t, time_t> _holds;
+    std::map<uint64_t, uint16_t> _holds;
 
     // transport addresses leared from hellos, FIXME: what if another lsr w/ same id?
     std::map<uint64_t, uint32_t> _transports;
