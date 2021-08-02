@@ -389,6 +389,10 @@ void Ldpd::handleHello() {
         log_info("learned transport address for %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
         log_info("transport address: %s.\n", inet_ntoa(*(struct in_addr *) &ta));
         _transports[key] = ta;
+
+        if (_fsms.count(key) == 0 && ntohl(_transport) < ntohl(ta)) {
+            log_debug("no running session with %s:%d but they have higher transport-address - not sending init.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
+        }
     }
 
     if (_fsms.count(key) == 0) {
