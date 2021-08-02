@@ -31,6 +31,7 @@ public:
     ssize_t setRouterIdString(const char* id);
 
     const std::vector<LdpMessage *> getMessages() const;
+    const LdpMessage* getMessage(uint16_t type) const;
 
     uint16_t recalculateLength();
 

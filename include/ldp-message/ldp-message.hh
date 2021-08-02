@@ -40,6 +40,7 @@ public:
     uint16_t recalculateLength();
 
     const std::vector<LdpRawTlv *> getTlvs() const;
+    const LdpRawTlv* getTlv(uint16_t type) const;
 
 protected:
     uint16_t _type;
