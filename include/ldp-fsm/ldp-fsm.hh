@@ -13,12 +13,12 @@ enum LdpRole {
 };
 
 enum LdpSessionState {
-    Initialized, OpenReceived, OpenSent, Operational, Invalid
+    Invalid = -1, Initialized, OpenReceived, OpenSent, Operational
 };
 
 class LdpFsm {
 public:
-    LdpFsm(Ldpd *ldpd, uint16_t localLabelSpace, uint32_t neighborId, uint16_t neighborLabelSpace);
+    LdpFsm(Ldpd *ldpd);
 
     ssize_t receive(const uint8_t *packet, size_t size);
 

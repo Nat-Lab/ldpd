@@ -7,12 +7,12 @@
 
 namespace ldpd {
 
-LdpFsm::LdpFsm(Ldpd *ldpd, uint16_t labelSpace, uint32_t neighborId, uint16_t neighborLabelSpace) {
+LdpFsm::LdpFsm(Ldpd *ldpd) {
     _ldpd = ldpd;
     _state = Initialized;
-    _neighId = neighborId;
-    _neighLs = neighborLabelSpace;
-    _localLs = labelSpace;
+    _neighId = 0;
+    _neighLs = 0;
+    _localLs = 0;
 }
 
 ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
@@ -35,13 +35,6 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
         }
 
         if (_state == Initialized) {
-            if (getRole() != LdpRole::Passive) {
-                log_error("we got active role but peer have sent us init.\n");
-                _state = LdpSessionState::Invalid;
-                // todo: send notification
-                return -1;
-            }
-
             if (msg->getType() != LDP_MSGTYPE_INITIALIZE) {
                 log_error("got message of type 0x%.4x in init state.\n", msg->getType());
                 _state = LdpSessionState::Invalid;

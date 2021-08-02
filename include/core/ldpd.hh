@@ -2,13 +2,16 @@
 #define LDP_LDPD
 #include "ldp-message/ldp-message.hh"
 #include "abstraction/router.hh"
+#include <time.h>
 #include <stdint.h>
 #include <map>
-#include <vector>
 
+#define LDP_TCP_BACKLOG 16
 #define LDP_MIN_LBL 16
 #define LDP_MAX_LBL 1048576
 #define LDP_PORT 646
+
+#define LDP_KEY(lsr_id, lbl_space) ((((uint64_t) lsr_id) << sizeof(uint16_t)) + lbl_space)
 
 typedef ssize_t (*tx_handler_t) (const uint8_t *, size_t);
 
@@ -41,26 +44,45 @@ public:
     void shutdownSession(LdpFsm* of);
     void removeSession(LdpFsm* of);
 
+    void tick();
+
 private:
+
+    void handleSession();
+    void handleSession(int fd, LdpFsm *session);
+    void handleHello();
+    void createSession(uint32_t nei_id, uint16_t nei_ls);
 
     uint32_t _id;
     uint32_t _transport;
 
     bool _running;
 
-    // running sessions
-    std::vector<LdpFsm *> _fsms;
+    // running sessions - key is (lsrid << 16 + labelspace), value is fsm.
+    std::map<uint64_t, LdpFsm *> _fsms;
 
     // packet tx handlers for sessions
-    std::map<const LdpFsm *, tx_handler_t> _tx_handlers;
+    std::map<LdpFsm *, tx_handler_t> _tx_handlers;
 
     // opened tcp socket fds for sessions
-    std::map<const LdpFsm *, int> _fds;
+    std::map<int, LdpFsm *> _fds;
+
+    // hello adjacencies - key is (lsrid << 16 + labelspace), value is last hello time.
+    std::map<uint64_t, time_t> _hellos;
+
+    // transport addresses leared from hellos, FIXME: what if another lsr w/ same id?
+    std::map<uint64_t, uint32_t> _transports;
 
     // timers
     uint16_t _hello;
     uint16_t _keep;
     uint16_t _hold;
+
+    // time last hello is sent out
+    time_t _last_hello;
+
+    // time now.
+    time_t _now;
 
     // fd for the master tcp socket (the one use w/ accept syscall)
     int _tfd;
