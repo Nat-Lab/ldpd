@@ -53,38 +53,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             _neighLs = pdu.getLabelSpace();
             _neighId = pdu.getRouterId();
 
-            const LdpRawTlv *session = msg->getTlv(LDP_TLVTYPE_COMMON_SESSION);
-
-            if (session == nullptr) {
-                log_error("(%s:%u) common session params tlv not found in init msg.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
-                return -1;
-            }
-
-            LdpCommonSessionParamsTlvValue *params = (LdpCommonSessionParamsTlvValue  *) session->getParsedValue();
-
-            if (params->loopDetection()) { // todo
-                log_error("loop detection not yet implemented.\n");
-                return -1;
-            }
-
-            uint16_t keep = params->getKeepaliveTime();
-
-            if (_keep > keep) {
-                _keep = keep;
-            }
-
-            if (_keep = 0) {
-                _keep = 15;
-            }
-
-            uint32_t id = params->getReceiverRouterId();
-            uint32_t space = params->getReceiverLabelSpace();
-
-            delete params;
-
-            if (id != _ldpd->getRouterId() || space != _ldpd->getLabelSpace()) {
-                log_error("(%s:%u) target is not us.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
-                // no us? todo: send notify
+            if (processInit(msg) < 0) {
                 return -1;
             }
 
@@ -127,6 +96,8 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
                 // todo: send notification
                 return -1;
             }
+
+            // todo
 
             ssize_t rslt = sendKeepalive();
 
@@ -259,6 +230,43 @@ void LdpFsm::createInitPdu(LdpPdu &to) {
     to.addMessage(init);
 
     fillPduHeader(to);
+}
+
+int LdpFsm::processInit(const LdpMessage *init) {
+    const LdpRawTlv *session = init->getTlv(LDP_TLVTYPE_COMMON_SESSION);
+
+    if (session == nullptr) {
+        log_error("(%s:%u) common session params tlv not found in init msg.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+        return -1;
+    }
+
+    LdpCommonSessionParamsTlvValue *params = (LdpCommonSessionParamsTlvValue  *) session->getParsedValue();
+
+    if (params->loopDetection()) { // todo
+        log_error("loop detection not yet implemented.\n");
+        return -1;
+    }
+
+    uint16_t keep = params->getKeepaliveTime();
+
+    if (_keep > keep) {
+        _keep = keep;
+    }
+
+    if (_keep = 0) {
+        _keep = 15;
+    }
+
+    uint32_t id = params->getReceiverRouterId();
+    uint32_t space = params->getReceiverLabelSpace();
+
+    delete params;
+
+    if (id != _ldpd->getRouterId() || space != _ldpd->getLabelSpace()) {
+        log_error("(%s:%u) target is not us.\n", inet_ntoa(*(struct in_addr *) &_neighId), _neighLs);
+        // no us? todo: send notify
+        return -1;
+    }
 }
 
 void LdpFsm::tick() {

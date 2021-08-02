@@ -34,6 +34,8 @@ public:
     void tick();
 
 private:
+    int processInit(const LdpMessage *init);
+
     void fillPduHeader(LdpPdu &to) const;
     void createInitPdu(LdpPdu &to);
 
