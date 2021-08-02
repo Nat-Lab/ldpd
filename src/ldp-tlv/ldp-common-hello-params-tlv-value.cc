@@ -11,6 +11,7 @@ LdpCommonHelloParamsTlvValue::LdpCommonHelloParamsTlvValue() {
     _holdTime = 0;
     _targeted = false;
     _requestTargeted = false;
+    _gtsm = true;
 }
 
 LdpCommonHelloParamsTlvValue::~LdpCommonHelloParamsTlvValue() {
@@ -33,6 +34,10 @@ bool LdpCommonHelloParamsTlvValue::requestTargeted() const {
     return _requestTargeted;
 }
 
+bool LdpCommonHelloParamsTlvValue::Gtsm() const {
+    return _gtsm;
+}
+
 ssize_t LdpCommonHelloParamsTlvValue::setHoldTime(uint16_t holdTime) {
     _holdTime = holdTime;
 
@@ -51,6 +56,13 @@ ssize_t LdpCommonHelloParamsTlvValue::setRequestTargeted(bool requestTargeted) {
     return sizeof(uint16_t);
 }
 
+ssize_t LdpCommonHelloParamsTlvValue::setGtsm(bool gtsm) {
+    _gtsm = gtsm;
+
+    return sizeof(uint16_t);
+}
+
+
 ssize_t LdpCommonHelloParamsTlvValue::parse(const uint8_t *from, size_t tlv_sz) {
     if (tlv_sz != this->length()) {
         log_fatal("bad length. common-hello-params-tlv must be len %zu, but got %zu.\n", this->length(), tlv_sz);
@@ -67,6 +79,7 @@ ssize_t LdpCommonHelloParamsTlvValue::parse(const uint8_t *from, size_t tlv_sz) 
 
     _targeted = bitmap & 0b1000000000000000;
     _requestTargeted = bitmap & 0b0100000000000000;
+    _gtsm = bitmap & 0b0010000000000000;
 
     return ptr - from;
 }
@@ -90,6 +103,10 @@ ssize_t LdpCommonHelloParamsTlvValue::write(uint8_t *to, size_t buf_sz) const {
 
     if (_requestTargeted) {
         bitmap |= 0b0100000000000000;
+    }
+
+    if (_gtsm) {
+        bitmap |= 0b0010000000000000;
     }
 
     PUTVAL_S(ptr, buf_remaining, uint16_t, bitmap, htons, -1);

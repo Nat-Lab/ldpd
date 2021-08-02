@@ -8,10 +8,6 @@
 
 namespace ldpd {
     
-enum LdpRole {
-    Passive, Active
-};
-
 enum LdpSessionState {
     Invalid = -1, Initialized, OpenReceived, OpenSent, Operational
 };
@@ -25,7 +21,6 @@ public:
     ssize_t step();
 
     LdpSessionState getState() const;
-    LdpRole getRole() const;
 
     uint32_t getLocalId() const;
     uint16_t getLocalLabelSpace() const;
@@ -38,8 +33,7 @@ public:
 
 private:
     void fillPduHeader(LdpPdu &to) const;
-    void fillInitMessage(LdpPdu &to);
-    void addInitTlv(LdpPdu &to);
+    void createInitPdu(LdpPdu &to);
 
     uint32_t _neighId;
     uint16_t _neighLs;

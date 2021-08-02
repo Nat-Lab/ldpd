@@ -13,7 +13,7 @@
 
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _tx_handlers(), _fds(), _hellos(), _transports() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _transports() {
     _running = false;
     _id = routerId;
     _space = labelSpace;
@@ -81,6 +81,12 @@ int Ldpd::start() {
         return 1;
     }
 
+    int ttl = 255;
+    if (setsockopt(_tfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)) < 0) {
+        log_fatal("setsockopt(): %s.\n", strerror(errno));
+        return 1;
+    }
+
     // FIXME: remove this when not in debug
     int optval = 1;
     setsockopt(_tfd, SOL_SOCKET, SO_REUSEADDR, (const void *) &optval , sizeof(int));
@@ -104,6 +110,12 @@ int Ldpd::start() {
 
     if (bind(_ufd, (const sockaddr *) &addr, sizeof(addr)) < 0) {
         log_fatal("bind(): %s.\n", strerror(errno));
+        return 1;
+    }
+
+    ttl = 1;
+    if (setsockopt(_ufd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)) < 0) {
+        log_fatal("setsockopt(): %s.\n", strerror(errno));
         return 1;
     }
 
@@ -198,10 +210,17 @@ void Ldpd::run() {
             continue;
         }
 
+        // FIXME: _fds may change after handleSession call - but don't fix it like this
+        std::vector<int> pending_fds = std::vector<int>();
+
         for (std::pair<int, LdpFsm *> _fd : _fds) {
             if (FD_ISSET(_fd.first, &fds)) {
-                handleSession(_fd.first, _fd.second);
+                pending_fds.push_back(_fd.first);
             }
+        }
+
+        for (int &fd : pending_fds) {
+            handleSession(fd);
         }
     }
 }
@@ -234,10 +253,6 @@ void Ldpd::setKeepaliveTimer(uint16_t timer) {
     _keep = timer;
 }
 
-tx_handler_t Ldpd::getTransmitHandler(LdpFsm* requester) {
-    return nullptr;
-}
-
 ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
     return -1;
 }
@@ -247,7 +262,28 @@ void Ldpd::shutdownSession(LdpFsm* of) {
 }
 
 void Ldpd::removeSession(LdpFsm* of) {
+    std::map<int, LdpFsm *>::iterator fdit = _fds.begin();
+    std::map<uint64_t, LdpFsm *>::iterator sit = _fsms.begin();
 
+    bool fd_del = false;
+    for (; fdit != _fds.end(); ++fdit) {
+        if (fdit->second == of) {
+            fd_del = true;
+            delete fdit->second;
+            _fds.erase(fdit);
+            break;
+        }
+    }
+
+    for (; sit != _fsms.end(); ++sit) {
+        if (sit->second == of) {
+            if(!fd_del) {
+                delete sit->second;
+            }
+            _fsms.erase(sit);
+            break;
+        }
+    }
 }
 
 void Ldpd::handleHello() {
@@ -309,13 +345,14 @@ void Ldpd::handleHello() {
     if (!_hellos.count(key) || _now - _hellos[key] > _hold) {
         log_info("got a new hello from %s:%u.\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
         log_info("their id: %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
-    }
+    } 
 
     _hellos[key] = time(NULL);
 
     const LdpRawTlv *ta_tlv = hello->getTlv(LDP_TLVTYPE_IPV4_TRANSPORT);
 
     if (ta_tlv == nullptr) {
+        _transports[key] = remote.sin_addr.s_addr;
         return;
     }
 
@@ -332,6 +369,12 @@ void Ldpd::handleHello() {
         log_info("learned transport address for %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
         log_info("transport address: %s.\n", inet_ntoa(*(struct in_addr *) &ta));
         _transports[key] = ta;
+    }
+
+    if (_fsms.count(key) == 0) {
+        if (ntohl(_transport) > ntohl(ta)) {
+            createSession(nei_id, nei_ls);
+        }
     }
 }
 
@@ -371,6 +414,7 @@ void Ldpd::handleSession() {
     }
 
     LdpFsm *session = new LdpFsm(this);
+    _fds[fd] = session;
     
     int offset = 0;
 
@@ -378,7 +422,7 @@ void Ldpd::handleSession() {
         ssize_t ret = session->receive(buffer + offset, len);
 
         if (ret < 0 || session->getState() < LdpSessionState::OpenReceived) {
-            delete session;
+            removeSession(session);
             return;
         }
 
@@ -398,30 +442,31 @@ void Ldpd::handleSession() {
 
         // TODO: send notify.
 
-        close(fd);
+        removeSession(session);
         return;
     }
     
-    if (_fds.count(fd) != 0) {
-        log_warn("fd %d is used by an active neighbour? assume that one is dead.\n", fd);
-        removeSession(_fds[fd]);
-    }
-
     if (_fsms.count(key) != 0) {
         log_warn("a session with a router w/ same lrs-id exists? rejecting.\n");
         close(fd);
         return;
     }
 
+    _fsms[key] = session;
+
     log_info("looks good, registering them.\n");
 
-    _fsms[key] = session;
-    _fds[fd] = session;
 }
 
-void Ldpd::handleSession(int fd, LdpFsm *session) {
+void Ldpd::handleSession(int fd) {
     uint8_t buffer[8192];
     ssize_t len = read(fd, buffer, sizeof(buffer));
+
+    if (_fds.count(fd) == 0) {
+        return;
+    }
+
+    LdpFsm *session = _fds[fd];
 
     // FIXME: make sure it has atleast one full pdu?
 
@@ -432,6 +477,7 @@ void Ldpd::handleSession(int fd, LdpFsm *session) {
 
     if (len == 0) {
         log_warn("read(): got eof\n");
+        removeSession(session);
         return;
     }
 
@@ -478,9 +524,19 @@ void Ldpd::sendHello() {
     ta_val.setAddress(_transport);
     ta->setValue(&ta_val);
 
+    LdpRawTlv *cs = new LdpRawTlv();
+    LdpConfigSeqNumTlvValue cs_vl = LdpConfigSeqNumTlvValue();
+
+    // FIXME: track local config change.
+    cs_vl.setSeq(114514);
+    cs->setValue(&cs_vl);
+
     hello->setType(LDP_MSGTYPE_HELLO);
+
     hello->addTlv(common);
     hello->addTlv(ta);
+    hello->addTlv(cs);
+
     hello->setId(getNextMessageId());
     hello->recalculateLength();
 
@@ -500,6 +556,69 @@ void Ldpd::sendHello() {
     if (res < 0) {
         log_error("sendto(): %s\n", strerror(errno));
     }
+}
+
+ssize_t Ldpd::transmit(LdpFsm* by, const uint8_t *buffer, size_t len) {
+    for (std::pair<int, LdpFsm *> fd : _fds) {
+        if (fd.second == by) {
+            return write(fd.first, buffer, len);
+        }
+    }
+
+    log_error("got transmit request from unknow session.\n");
+
+    return -1;
+}
+
+void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
+    uint64_t key = LDP_KEY(nei_id, nei_ls);
+
+    if (_transports.count(key) == 0 || _fsms.count(key) != 0) {
+        log_warn("create-s called when no hello from remote, or session already exist.\n");
+        return;
+    }
+
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (fd < 0) {
+        log_error("socket(): %s\n", strerror(errno));
+        return;
+    }
+
+    struct sockaddr_in remote, local;
+
+    memset(&remote, 0, sizeof(remote));
+    memset(&local, 0, sizeof(local));
+
+    remote.sin_addr.s_addr = _transports[key];
+    remote.sin_family = AF_INET;
+    remote.sin_port = htons(LDP_PORT);
+
+    local.sin_addr.s_addr = _transport;
+    local.sin_family = AF_INET;
+
+    if (bind(fd, (const sockaddr *) &local, sizeof(local)) < 0) {
+        log_error("bind(): %s.\n", strerror(errno));
+        return;
+    }
+
+    if (connect(fd, (const sockaddr *) &remote, sizeof(local)) < 0) {
+        log_error("connect(): %s.\n", strerror(errno));
+        return;
+    }
+
+    int ttl = 255;
+    if (setsockopt(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)) < 0) {
+        log_fatal("setsockopt(): %s.\n", strerror(errno));
+        return;
+    }
+
+    LdpFsm *session = new LdpFsm(this);
+
+    _fsms[key] = session;
+    _fds[fd] = session;
+
+    session->step();
 }
 
 void Ldpd::scanInterfaces() {

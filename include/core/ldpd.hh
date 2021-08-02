@@ -13,8 +13,6 @@
 
 #define LDP_KEY(lsr_id, lbl_space) ((((uint64_t) lsr_id) << sizeof(uint16_t)) + lbl_space)
 
-typedef ssize_t (*tx_handler_t) (const uint8_t *, size_t);
-
 namespace ldpd {
 
 class LdpFsm;
@@ -39,7 +37,7 @@ public:
     void setTransportAddress(uint32_t address);
     void setKeepaliveTimer(uint16_t timer);
 
-    tx_handler_t getTransmitHandler(LdpFsm* requester);
+    ssize_t transmit(LdpFsm* by, const uint8_t *buffer, size_t len);
     ssize_t handleMessage(LdpFsm* from, const LdpMessage *msg);
 
     std::vector<LdpFsm *> getSessions() const;
@@ -54,7 +52,7 @@ private:
     void scanInterfaces();
 
     void handleSession();
-    void handleSession(int fd, LdpFsm *session);
+    void handleSession(int fd);
     void handleHello();
 
     void sendHello();
@@ -70,9 +68,6 @@ private:
 
     // running sessions - key is (lsrid << 16 + labelspace), value is fsm.
     std::map<uint64_t, LdpFsm *> _fsms;
-
-    // packet tx handlers for sessions
-    std::map<LdpFsm *, tx_handler_t> _tx_handlers;
 
     // opened tcp socket fds for sessions
     std::map<int, LdpFsm *> _fds;

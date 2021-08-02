@@ -44,7 +44,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             // todo: handle init msg
 
             LdpPdu init = LdpPdu();
-            addInitTlv(init);
+            createInitPdu(init);
             ssize_t rslt = send(init);
 
             if (rslt < 0) {
@@ -84,7 +84,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
             }
 
             LdpPdu init = LdpPdu();
-            addInitTlv(init);
+            createInitPdu(init);
             ssize_t rslt = send(init);
 
             if (rslt < 0) {
@@ -119,16 +119,12 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
 }
 
 ssize_t LdpFsm::step() {
-    if (getRole() == LdpRole::Passive) {
-        return 0;
-    }
-
     if (_state != LdpSessionState::Initialized) {
         return 0;
     }
 
     LdpPdu init = LdpPdu();
-    fillInitMessage(init);
+    createInitPdu(init);
     ssize_t rslt = send(init);
 
     if (rslt < 0) {
@@ -143,10 +139,6 @@ ssize_t LdpFsm::step() {
 
 LdpSessionState LdpFsm::getState() const {
     return _state;
-}
-
-LdpRole LdpFsm::getRole() const {
-    return ntohl(_ldpd->getRouterId()) > ntohl(_neighId) ? LdpRole::Active : LdpRole::Passive;
 }
 
 uint32_t LdpFsm::getLocalId() const {
@@ -179,7 +171,7 @@ ssize_t LdpFsm::send(LdpPdu &pdu) {
         return res;
     }
 
-    return _ldpd->getTransmitHandler(this)(buffer, len);
+    return _ldpd->transmit(this, buffer, len);
 }
 
 void LdpFsm::fillPduHeader(LdpPdu &pdu) const {
@@ -202,11 +194,7 @@ ssize_t LdpFsm::sendKeepalive() {
     return send(pdu);
 }
 
-void LdpFsm::fillInitMessage(LdpPdu &to) {
-
-}
-
-void LdpFsm::addInitTlv(LdpPdu &to) {
+void LdpFsm::createInitPdu(LdpPdu &to) {
     LdpMessage *init = new LdpMessage();
 
     init->setType(LDP_MSGTYPE_INITIALIZE);
@@ -224,7 +212,9 @@ void LdpFsm::addInitTlv(LdpPdu &to) {
     init->addTlv(tlv);
     init->recalculateLength();
 
-    to.addMessage(init);    
+    to.addMessage(init);
+
+    fillPduHeader(to);
 }
 
 }

@@ -15,15 +15,18 @@ public:
     uint16_t getHoldTime() const;
     bool targeted() const;
     bool requestTargeted() const;
+    bool Gtsm() const;
 
     ssize_t setHoldTime(uint16_t holdTime);
     ssize_t setTargeted(bool targeted);
     ssize_t setRequestTargeted(bool requestTargeted);
+    ssize_t setGtsm(bool gtsm);
 
 private:
     uint16_t _holdTime;
     bool _targeted;
     bool _requestTargeted;
+    bool _gtsm;
 
 // ----------------------------------------------------------------------------
 
