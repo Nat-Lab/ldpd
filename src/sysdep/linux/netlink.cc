@@ -303,9 +303,10 @@ int Netlink::getReply(unsigned int seq, int (*handler) (void *, const struct nlm
 
         for (struct nlmsghdr *msg = (struct nlmsghdr *) buffer; NLMSG_OK(msg, res); msg = NLMSG_NEXT(msg, res)) {
             if (msg->nlmsg_seq != seq) {
-                log_info("reply from kernel with seq %u != %u (us): saving for the others\n", msg->nlmsg_seq, seq);
+                log_info("reply from kernel with seq %u != %u (us), type %u: saving for the change-handlers.\n", msg->nlmsg_seq, msg->nlmsg_type, seq);
                 struct nlmsghdr *saved = (struct nlmsghdr *) malloc(msg->nlmsg_len);
                 memcpy(saved, msg, msg->nlmsg_len);
+                _saved.push_back(saved);
                 continue;
             }
 
@@ -699,6 +700,13 @@ int Netlink::buildRtAttr(const MplsRoute &route, RtAttr &attrs) {
 }
 
 void Netlink::tick() {
+    for (std::vector<struct nlmsghdr *>::iterator i = _saved.begin(); i != _saved.end(); i = _saved.erase(i)) {
+        struct nlmsghdr *msg = *i;
+        log_debug("processing previously saved message %u...\n", msg->nlmsg_seq);
+        handleChanges(msg);
+        delete msg;
+    }
+
     uint8_t buffer[8192];
     
     memset(buffer, 0, sizeof(buffer));
@@ -739,71 +747,75 @@ void Netlink::tick() {
     }
 
     for (struct nlmsghdr *msg = (struct nlmsghdr *) buffer; NLMSG_OK(msg, res); msg = NLMSG_NEXT(msg, res)) {
-        if (msg->nlmsg_type == RTM_NEWROUTE || msg->nlmsg_type == RTM_DELROUTE) {
-            const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(msg);
-            if (rt->rtm_family == AF_INET) {
-                log_debug("route-change: ipv4 route %s.\n", msg->nlmsg_type == RTM_NEWROUTE ? "added/replaced" : "deleted");
-
-                if (_irc_handler == nullptr) {
-                    continue;
-                }
-
-                Ipv4Route r = Ipv4Route();
-                if (parseNetlinkMessage(r, msg) == PARSE_OK) {
-                    _irc_handler(_irc_handler_d, msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
-                }
-            }
-
-            if (rt->rtm_family == AF_MPLS) {
-                log_debug("route-change: mpls route %s.\n", msg->nlmsg_type == RTM_NEWROUTE ? "added/replaced" : "deleted");
-
-                if (_irc_handler == nullptr) {
-                    continue;
-                }
-
-                MplsRoute r = MplsRoute();
-                if (parseNetlinkMessage(r, msg) == PARSE_OK) {
-                    _mrc_handler(_mrc_handler_d, msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
-                }
-            }
-
-            continue;
-        }
-
-        if (msg->nlmsg_type == RTM_NEWLINK || msg->nlmsg_type == RTM_DELLINK) {
-            log_debug("link-change: link %s.\n", msg->nlmsg_type == RTM_NEWLINK ? "added/changed" : "deleted");
-
-            if (_lc_handler == nullptr) {
-                continue;
-            }
-
-            Interface iface = Interface();
-
-            if (parseNetlinkMessage(iface, msg) == PARSE_OK) {
-                _lc_handler(_lc_handler_d, msg->nlmsg_type == RTM_NEWLINK ? NetlinkChange::Added : NetlinkChange::Deleted, iface);
-            }
-
-            continue;
-        }
-
-        if (msg->nlmsg_type == RTM_NEWADDR || msg->nlmsg_type == RTM_DELADDR) {
-            log_debug("address-change: address %s.\n", msg->nlmsg_type == RTM_NEWADDR ? "added/changed" : "deleted");
-
-            if (_lc_handler == nullptr) {
-                continue;
-            }
-
-            InterfaceAddress addr = InterfaceAddress();
-
-            if (parseNetlinkMessage(addr, msg) == PARSE_OK) {
-                _ac_handler(_ac_handler_d, msg->nlmsg_type == RTM_NEWADDR ? NetlinkChange::Added : NetlinkChange::Deleted, addr);
-            }
-
-            continue;
-        }
-
-        log_debug("unhandled netlink message: type %u.\n", msg->nlmsg_type);
+        handleChanges(msg);
     }
+}
+
+void Netlink::handleChanges(const struct nlmsghdr *msg) const {
+    if (msg->nlmsg_type == RTM_NEWROUTE || msg->nlmsg_type == RTM_DELROUTE) {
+        const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(msg);
+        if (rt->rtm_family == AF_INET) {
+            log_debug("route-change: ipv4 route %s.\n", msg->nlmsg_type == RTM_NEWROUTE ? "added/replaced" : "deleted");
+
+            if (_irc_handler == nullptr) {
+                return;
+            }
+
+            Ipv4Route r = Ipv4Route();
+            if (parseNetlinkMessage(r, msg) == PARSE_OK) {
+                _irc_handler(_irc_handler_d, msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
+            }
+        }
+
+        if (rt->rtm_family == AF_MPLS) {
+            log_debug("route-change: mpls route %s.\n", msg->nlmsg_type == RTM_NEWROUTE ? "added/replaced" : "deleted");
+
+            if (_irc_handler == nullptr) {
+                return;
+            }
+
+            MplsRoute r = MplsRoute();
+            if (parseNetlinkMessage(r, msg) == PARSE_OK) {
+                _mrc_handler(_mrc_handler_d, msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
+            }
+        }
+
+        return;
+    }
+
+    if (msg->nlmsg_type == RTM_NEWLINK || msg->nlmsg_type == RTM_DELLINK) {
+        log_debug("link-change: link %s.\n", msg->nlmsg_type == RTM_NEWLINK ? "added/changed" : "deleted");
+
+        if (_lc_handler == nullptr) {
+            return;
+        }
+
+        Interface iface = Interface();
+
+        if (parseNetlinkMessage(iface, msg) == PARSE_OK) {
+            _lc_handler(_lc_handler_d, msg->nlmsg_type == RTM_NEWLINK ? NetlinkChange::Added : NetlinkChange::Deleted, iface);
+        }
+
+        return;
+    }
+
+    if (msg->nlmsg_type == RTM_NEWADDR || msg->nlmsg_type == RTM_DELADDR) {
+        log_debug("address-change: address %s.\n", msg->nlmsg_type == RTM_NEWADDR ? "added/changed" : "deleted");
+
+        if (_lc_handler == nullptr) {
+            return;
+        }
+
+        InterfaceAddress addr = InterfaceAddress();
+
+        if (parseNetlinkMessage(addr, msg) == PARSE_OK) {
+            _ac_handler(_ac_handler_d, msg->nlmsg_type == RTM_NEWADDR ? NetlinkChange::Added : NetlinkChange::Deleted, addr);
+        }
+
+        return;
+    }
+
+    log_debug("unhandled netlink message: type %u.\n", msg->nlmsg_type);
 }
 
 void Netlink::onLinkChanges(linkchange_handler_t handler, void *data) {

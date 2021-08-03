@@ -78,6 +78,8 @@ private:
 
     int getReply(unsigned int seq, int (*handler) (void *, const struct nlmsghdr *), void *data);
 
+    void handleChanges(const struct nlmsghdr *msg) const;
+
     ssize_t sendMessage(const void *msg);
 
     static int parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src);
