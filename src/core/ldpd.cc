@@ -139,6 +139,12 @@ int Ldpd::start() {
 }
 
 int Ldpd::stop() {
+    if (!_running) {
+        return 0;
+    }
+
+    _running = false;
+
     close(_ufd);
     close(_tfd);
 
@@ -151,8 +157,6 @@ int Ldpd::stop() {
     _holds.clear();
     _fds.clear();
     _transports.clear();
-
-    _running = false;
 
     return 0;
 }
@@ -227,6 +231,10 @@ void Ldpd::run() {
         tick();
 
         if (ret < 0) {
+            if (errno == EAGAIN) {
+                continue;
+            }
+
             log_error("select(): %s.\n", strerror(errno));
             continue;
         }
@@ -637,6 +645,8 @@ void Ldpd::handleHello() {
 
     uint32_t ta = ta_tlv_val->getAddress();
 
+    delete ta_tlv_val;
+
     if (_transports.count(key) == 0 || _transports[key] != ta) {
         log_info("learned transport address for %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
         log_info("transport address: %s.\n", inet_ntoa(*(struct in_addr *) &ta));
@@ -834,6 +844,8 @@ void Ldpd::sendHello() {
     if (res < 0) {
         log_error("sendto(): %s.\n", strerror(errno));
     }
+
+    free(buffer);
 }
 
 ssize_t Ldpd::transmit(LdpFsm* by, const uint8_t *buffer, size_t len) {

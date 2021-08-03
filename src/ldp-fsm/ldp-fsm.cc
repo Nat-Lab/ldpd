@@ -195,7 +195,10 @@ ssize_t LdpFsm::send(LdpPdu &pdu) {
 
     _last_send = _ldpd->now();
 
-    return _ldpd->transmit(this, buffer, len);
+    res = _ldpd->transmit(this, buffer, len);
+    free(buffer);
+
+    return res;
 }
 
 void LdpFsm::fillPduHeader(LdpPdu &pdu) const {

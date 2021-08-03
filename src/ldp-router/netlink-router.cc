@@ -31,6 +31,12 @@ NetlinkRouter::~NetlinkRouter() {
             log_debug("(ipv4) deleting route to %s/%u from fib...\n", inet_ntoa(*(struct in_addr *) &(r->dst)), r->dst_len);
             _nl.deleteRoute(*r);
         }
+
+        delete route;
+    }
+
+    for (std::pair<uint64_t, Route *> r : _fib) {
+        delete r.second;
     }
 
     _nl.close();

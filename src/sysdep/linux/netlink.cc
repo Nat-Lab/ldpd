@@ -704,7 +704,7 @@ void Netlink::tick() {
         struct nlmsghdr *msg = *i;
         log_debug("processing previously saved message %u...\n", msg->nlmsg_seq);
         handleChanges(msg);
-        delete msg;
+        free(msg);
     }
 
     uint8_t buffer[8192];
