@@ -624,6 +624,7 @@ int Netlink::buildRtAttr(const Ipv4Route &route, RtAttr &attrs) {
     attrs.addAttribute(RTA_OIF, route.oif);
     attrs.addAttribute(RTA_DST, route.dst);
     attrs.addAttribute(RTA_GATEWAY, route.gw);
+    attrs.addAttribute(RTA_METRICS, route.metric);
 
     if (route.mpls_encap && route.mpls_stack.size() > 0) {
         short type = LWTUNNEL_ENCAP_MPLS;
