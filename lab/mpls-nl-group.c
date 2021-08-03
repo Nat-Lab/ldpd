@@ -39,7 +39,7 @@ int open_netlink(unsigned int group) {
     return fd;
 }
 
-int recv_once(int fd, int timeout) {
+int recv_once(int fd, int retries) {
     uint8_t buffer[8192];
     memset(buffer, 0, sizeof(buffer));
 
@@ -67,13 +67,15 @@ int recv_once(int fd, int timeout) {
     do {
         res = recvmsg(fd, &rslt_hdr, MSG_DONTWAIT);
         
-        if (res == -EINTR || res == -EAGAIN) {
-            sleep(1);
-            continue;
+        if (res < 0) {
+            if (errno == EINTR || errno == EAGAIN) {
+                continue;
+            }
+            break;
         }
 
         break;
-    } while(--timeout > 0);
+    } while(--retries > 0);
 
     close(fd);
 
