@@ -25,6 +25,9 @@ int main() {
     signal(SIGINT, handle_sig);
 
     ldpd.setTransportAddress(ta);
+    ldpd.addInterface("ens33");
+    ldpd.addInterface("lo");
+
     ldpd.start();
     ldpd.run();
 

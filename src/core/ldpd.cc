@@ -15,7 +15,7 @@
 
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) : _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(), _mappings(), _installed_mappings() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) : _ldp_ifaces(), _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(), _mappings(), _installed_mappings() {
     _running = false;
     _id = routerId;
     _space = labelSpace;
@@ -43,6 +43,10 @@ Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) :
 
 Ldpd::~Ldpd() {
     stop();
+}
+
+void Ldpd::addInterface(std::string ifname) {
+    _ldp_ifaces.push_back(ifname);
 }
 
 int Ldpd::start() {
@@ -119,6 +123,12 @@ int Ldpd::start() {
 
     ttl = 1;
     if (setsockopt(_ufd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)) < 0) {
+        log_fatal("setsockopt(): %s.\n", strerror(errno));
+        return 1;
+    }
+
+    int pktinfo = 1;
+    if (setsockopt(_ufd, IPPROTO_IP, IP_PKTINFO, &pktinfo, sizeof(pktinfo)) < 0) {
         log_fatal("setsockopt(): %s.\n", strerror(errno));
         return 1;
     }
@@ -548,26 +558,71 @@ void Ldpd::removeSession(LdpFsm* of) {
 
 void Ldpd::handleHello() {
     // TODO: targeted hellos?
-
-    sockaddr_in remote;
-    memset(&remote, 0, sizeof(remote));
-
-    socklen_t addrlen = sizeof(remote);
-
     uint8_t buffer[8192];
-    ssize_t len = recvfrom(_ufd, (void *) buffer, sizeof(buffer), 0, (struct sockaddr *) &remote, &addrlen);
+    uint8_t control[128];
+
+    struct msghdr message;
+    struct sockaddr_in remote;
+    struct iovec iov;
+
+    memset(&message, 0, sizeof(message));
+    memset(&remote, 0, sizeof(remote));
+    memset(&iov, 0, sizeof(iov));
+
+    iov.iov_base = buffer;
+    iov.iov_len = sizeof(buffer);
+
+    message.msg_name = &remote;
+    message.msg_namelen = sizeof(remote);
+    message.msg_iov = &iov;
+    message.msg_iovlen = 1;
+    message.msg_control = control;
+    message.msg_controllen = sizeof(control);
+
+    ssize_t len = recvmsg(_ufd, &message, 0);
 
     if (len < 0) {
-        log_warn("recvfrom(): %s.\n", strerror(errno));
+        log_warn("recvmsg(): %s.\n", strerror(errno));
         return;
     }
 
     if (len == 0) {
-        log_warn("recvfrom(): got eof.\n");
+        log_warn("recvmsg(): got eof.\n");
         return;
     }
 
-    // check if msg is from self
+    struct in_pktinfo *pktinfo = nullptr;
+
+    for(struct cmsghdr *cmsg = CMSG_FIRSTHDR(&message); cmsg != nullptr; cmsg = CMSG_NXTHDR(&message, cmsg)) {
+        if (cmsg->cmsg_type != IP_PKTINFO || cmsg->cmsg_level != IPPROTO_IP) {
+            continue;
+        }
+
+        pktinfo = (struct in_pktinfo *) CMSG_DATA(cmsg);
+        break;
+    }
+
+    if (pktinfo == nullptr) {
+        log_error("recvmsg() result does not have a ip_pktinfo message.\n");
+        return;
+    }
+
+    bool ldp_enabled = false;
+
+    for (const std::string &ifname : _ldp_ifaces) {
+        for (const Interface &iface : _ifaces) {
+            if (iface.ifname == ifname && pktinfo->ipi_ifindex == iface.index) {
+                ldp_enabled = true;
+            }
+        }
+    }
+
+    if (!ldp_enabled) {
+        log_debug("got hello on interface %d, but ldp is not enabled on it.\n", pktinfo->ipi_ifindex);
+        return;
+    }
+
+    // check if msg is from self.
     for (const Interface &iface : _ifaces) {
         for (const InterfaceAddress &addr : iface.addresses) {
             if (addr.address.prefix == remote.sin_addr.s_addr) {
@@ -666,7 +721,7 @@ void Ldpd::handleHello() {
 }
 
 void Ldpd::handleSession() {
-    sockaddr_in remote;
+    struct sockaddr_in remote;
     memset(&remote, 0, sizeof(remote));
 
     socklen_t addrlen = sizeof(remote);
@@ -837,13 +892,34 @@ void Ldpd::sendHello() {
 
     pdu.write(buffer, len);
 
-    ssize_t res = sendto(_ufd, buffer, len, 0, (struct sockaddr *) &remote, addrlen);
+    for (const std::string &ifname : _ldp_ifaces) {
+        uint32_t outaddr = 0;
+
+        for (const Interface &iface : _ifaces) {
+            if (iface.ifname == ifname && iface.addresses.size() > 0) {
+                outaddr = iface.addresses[0].address.prefix;
+            }
+        }
+
+        if (outaddr == 0) {
+            log_error("no interface with name %s, or no valid ip address on it.\n", ifname.c_str());
+            continue;
+        }
+
+        if (setsockopt(_ufd, IPPROTO_IP, IP_MULTICAST_IF, &outaddr, sizeof(outaddr)) < 0) {
+            log_error("setsockopt(): %s.\n", strerror(errno));
+            continue;
+        }
+
+        ssize_t res = sendto(_ufd, buffer, len, 0, (struct sockaddr *) &remote, addrlen);
+        if (res < 0) {
+            log_error("sendto(): %s.\n", strerror(errno));
+        }
+    }
+
+
 
     _last_hello = _now;
-
-    if (res < 0) {
-        log_error("sendto(): %s.\n", strerror(errno));
-    }
 
     free(buffer);
 }

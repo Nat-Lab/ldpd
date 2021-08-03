@@ -32,6 +32,8 @@ public:
 
     void run();
 
+    void addInterface(std::string ifname);
+
     uint32_t getRouterId() const;
     uint16_t getLabelSpace() const;
     uint32_t getTransportAddress() const;
@@ -76,6 +78,9 @@ private:
     uint32_t _msg_id;
 
     bool _running;
+
+    // interfaces to run ldp on
+    std::vector<std::string> _ldp_ifaces;
 
     // running sessions - key is (lsrid << 16 + labelspace), value is fsm.
     std::map<uint64_t, LdpFsm *> _fsms;
