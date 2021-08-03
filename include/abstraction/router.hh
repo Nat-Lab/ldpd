@@ -1,6 +1,5 @@
 #ifndef LDP_ABSTR_ROUTER_H
 #define LDP_ABSTR_ROUTER_H
-#include "core/ldpd.hh"
 #include "abstraction/interface.hh"
 #include "abstraction/route.hh"
 #include <vector>
@@ -9,7 +8,7 @@
 namespace ldpd {
 
 enum RouteChange {
-    Added = 0, Deleted = 1
+    AddedOrChanged = 0, Removed = 1
 };
 
 typedef void (*ldp_routechange_handler_t)(void *data, RouteChange change, const Route *route);

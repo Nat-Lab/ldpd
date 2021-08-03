@@ -57,6 +57,8 @@ public:
     void shutdownSession(LdpFsm* of, int32_t code = LDP_SC_SHUTDOWN, uint32_t msgid = 0, uint16_t msgtype = 0);
     void removeSession(LdpFsm* of);
 
+    static void handleRouteChange(void *self, RouteChange change, const Route *route);
+
     void tick();
 
     time_t now() const;

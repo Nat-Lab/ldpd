@@ -46,7 +46,7 @@ private:
         NetlinkRouter *router = (NetlinkRouter *) self;
         router->handleFibUpdate(change, route);
         if (router->_onroutechange != nullptr) {
-            router->_onroutechange(route->_routechange_data, (RouteChange) NetlinkChange, &route);
+            router->_onroutechange(router->_routechange_data, (RouteChange) change, &route);
         }
     }
 

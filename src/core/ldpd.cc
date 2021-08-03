@@ -42,6 +42,8 @@ Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) :
 
     _metric = metric;
 
+    _router->onRouteChange(this, Ldpd::handleRouteChange);
+
     scanInterfaces();
 }
 
@@ -1167,6 +1169,12 @@ void Ldpd::setExportPolicy(const RoutePolicy &policy) {
     }
 
     _export = policy;
+}
+
+void Ldpd::handleRouteChange(void *self, RouteChange change, const Route *route) {
+    Ldpd *ldpd = (Ldpd *) self;
+
+    log_debug("todo: see if we need to send/withdraw mapping.\n");
 }
 
 }
