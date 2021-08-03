@@ -8,6 +8,7 @@ namespace ldpd {
 
 struct LdpLabelMapping {
     LdpLabelMapping();
+    LdpLabelMapping(uint32_t label, Prefix pfx);
 
     bool operator==(const LdpLabelMapping &other);
 

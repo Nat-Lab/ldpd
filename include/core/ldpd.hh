@@ -8,6 +8,7 @@
 #include <time.h>
 #include <stdint.h>
 #include <map>
+#include <set>
 
 #define LDP_TCP_BACKLOG 16
 #define LDP_MIN_LBL 16
@@ -37,6 +38,8 @@ public:
 
     void setImportPolicy(const RoutePolicy &policy);
     void setExportPolicy(const RoutePolicy &policy);
+
+    void addRouteSource(RoutingProtocol proto);
 
     uint32_t getRouterId() const;
     uint16_t getLabelSpace() const;
@@ -78,6 +81,8 @@ private:
 
     uint16_t getHoldTime(uint64_t of);
 
+    uint32_t getNextLabel() const;
+
     uint32_t _id;
     uint16_t _space;
     uint32_t _transport;
@@ -112,12 +117,19 @@ private:
 
     // mappings of peers.
     std::map<uint64_t, std::vector<LdpLabelMapping>> _mappings;
-
     std::vector<LdpLabelMapping> _installed_mappings;
     std::vector<LdpLabelMapping> _pending_delete_mappings;
 
     // interface cache
     std::vector<Interface> _ifaces;
+
+    // where to load routes to assign labels
+    std::set<RoutingProtocol> _srcs;
+
+    // local mappings
+    std::map<uint64_t, std::vector<LdpLabelMapping>> _local_mappings;
+    std::vector<LdpLabelMapping> _installed_local_mappings;
+    std::vector<LdpLabelMapping> _pending_delete_local_mappings;
 
     // timers
     uint16_t _hello;

@@ -7,7 +7,7 @@ Route::Route() : mpls_stack() {
     gw = 0;
     mpls_encap = false;
     metric = 0;
-    protocol = RouteProtocol::Ldp;
+    protocol = RoutingProtocol::Ldp;
 }
 
 Ipv4Route::Ipv4Route() : Route() {

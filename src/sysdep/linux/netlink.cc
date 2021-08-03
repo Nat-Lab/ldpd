@@ -485,7 +485,7 @@ int Netlink::parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src) {
         return PARSE_SKIP;
     }
 
-    dst.protocol = (RouteProtocol) rt->rtm_protocol;
+    dst.protocol = (RoutingProtocol) rt->rtm_protocol;
     dst.dst_len = rt->rtm_dst_len;
     dst.mpls_encap = false;
     dst.mpls_stack = std::vector<uint32_t>();
@@ -556,7 +556,7 @@ int Netlink::parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src) {
         return PARSE_SKIP;
     }
 
-    dst.protocol = (RouteProtocol) rt->rtm_protocol;
+    dst.protocol = (RoutingProtocol) rt->rtm_protocol;
     dst.mpls_encap = false;
     dst.mpls_stack = std::vector<uint32_t>();
 

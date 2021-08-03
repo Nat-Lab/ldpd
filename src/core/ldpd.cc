@@ -16,9 +16,9 @@
 namespace ldpd {
 
 Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) : 
-    _import(FilterAction::Accept), _export(FilterAction::Accept), _ldp_ifaces(),
+    _import(FilterAction::Reject), _export(FilterAction::Accept), _ldp_ifaces(),
     _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(),
-    _mappings(), _installed_mappings() {
+    _mappings(), _installed_mappings(), _srcs(), _local_mappings() {
 
     _running = false;
     _id = routerId;
@@ -555,6 +555,14 @@ void Ldpd::removeSession(LdpFsm* of) {
         }
 
         _mappings.erase(key);
+    }
+
+    if (_local_mappings.count(key) != 0) {
+        for (LdpLabelMapping &mapping : _local_mappings[key]) {
+            _pending_delete_local_mappings.push_back(mapping);
+        }
+
+        _local_mappings.erase(key);
     }
 
     uint32_t nei_id = (uint32_t) (key >> sizeof(uint16_t));
@@ -1149,8 +1157,74 @@ void Ldpd::handleNewSession(LdpFsm* of) {
 
     pdu.clearMessages();
 
-    // todo: send label mappings
+    LdpMessage *mapping_msg = new LdpMessage();
+    pdu.addMessage(mapping_msg);
 
+    mapping_msg->setType(LDP_MSGTYPE_LABEL_MAPPING);
+    mapping_msg->setId(getNextMessageId());
+
+    uint64_t key = LDP_KEY(of->getNeighborId(), of->getNeighborLabelSpace());
+
+    for (std::pair<uint64_t, Route *> r : _router->getFib()) {
+        if (r.second->getType() != RouteType::Ipv4) {
+            continue;
+        }
+
+        Ipv4Route *route = (Ipv4Route *) r.second;
+        Prefix pfx = Prefix(route->dst, route->dst_len);
+
+        if (_srcs.count(route->protocol) == 0 || _import.apply(pfx) != FilterAction::Accept) {
+            log_debug("import reject %s/%u - not an allowed src (%u), or rejected by filter.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len, route->protocol);
+            continue;
+        }
+
+        if (_local_mappings.count(key) == 0) {
+            _local_mappings[key] = std::vector<LdpLabelMapping>();
+        } else {
+            log_warn("local mapping already exist for neighbor?\n");
+        }
+
+        uint32_t label = getNextLabel();
+
+        if (label > LDP_MAX_LBL) {
+            return;
+        }
+
+        _local_mappings[key].push_back(LdpLabelMapping(label, pfx));
+
+        LdpRawTlv *fec = new LdpRawTlv();
+        mapping_msg->addTlv(fec);
+
+        LdpFecTlvValue fec_val = LdpFecTlvValue();
+
+        LdpFecPrefixElement *pel = new LdpFecPrefixElement();
+
+        pel->setPrefix(pfx.prefix);
+        pel->setPrefixLength(pfx.len);
+
+        fec_val.addElement(pel);
+        
+        fec->setValue(&fec_val);
+
+        LdpRawTlv *lbl = new LdpRawTlv();
+
+        LdpGenericLabelTlvValue lbl_val = LdpGenericLabelTlvValue();
+        lbl_val.setLabel(label);
+
+        lbl->setValue(&lbl_val);
+
+        mapping_msg->addTlv(lbl);
+        
+        log_debug("sending local binding %s/%u lbl %u.\n", inet_ntoa(*(struct in_addr *) &(pfx.prefix)), pfx.len, label);
+    }
+
+    mapping_msg->recalculateLength();
+
+    if (_local_mappings[key].size() == 0) {
+        return;
+    }
+
+    of->send(pdu);
 }
 
 void Ldpd::setImportPolicy(const RoutePolicy &policy) {
@@ -1175,6 +1249,30 @@ void Ldpd::handleRouteChange(void *self, RouteChange change, const Route *route)
     Ldpd *ldpd = (Ldpd *) self;
 
     log_debug("todo: see if we need to send/withdraw mapping.\n");
+}
+
+void Ldpd::addRouteSource(RoutingProtocol proto) {
+    _srcs.insert(proto);
+}
+
+uint32_t Ldpd::getNextLabel() const {
+    std::set<uint32_t> used = std::set<uint32_t>();
+
+    for (std::pair<uint64_t, std::vector<LdpLabelMapping>> mappings : _local_mappings) {
+        for (const LdpLabelMapping &mapping : mappings.second) {
+            used.insert(mapping.label);
+        }
+    }
+
+    for (uint32_t i = LDP_MIN_LBL; i <= LDP_MAX_LBL; ++i) {
+        if (used.count(i) == 0) {
+            return i;
+        }
+    }
+
+    log_error("we have run out of labels.\n");
+
+    return 0xffffffff;
 }
 
 }

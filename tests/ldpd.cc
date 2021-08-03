@@ -33,6 +33,13 @@ int main() {
 
     ldpd.setExportPolicy(ex);
 
+    ldpd::RoutePolicy im = ldpd::RoutePolicy(ldpd::FilterAction::Reject);
+    im.addFilter(ldpd::RouteFilter(ldpd::Prefix(inet_addr("1.2.4.8"), 32), ldpd::FilterMatchType::Exact, ldpd::FilterAction::Accept));
+
+    ldpd.addRouteSource(ldpd::RoutingProtocol::Static);
+
+    ldpd.setImportPolicy(im);
+
     ldpd.start();
     ldpd.run();
 

@@ -9,9 +9,9 @@ enum RouteType {
     Ipv4, Mpls
 };
 
-enum RouteProtocol {
-    Undefined = 0, Static = 4, Zebra = 11, Bird = 12, Dhcp = 16, Bgp = 186, 
-    Isis = 187, Ospf = 188, Rip = 189, Eigrp = 192, Ldp = 193
+enum RoutingProtocol {
+    Undefined = 0, Static = 3, Zebra = 11, Bird = 12, Dhcp = 16, Babel = 42,
+    Bgp = 186, Isis = 187, Ospf = 188, Rip = 189, Eigrp = 192, Ldp = 193
 };
 
 struct Route {
@@ -19,7 +19,7 @@ struct Route {
     virtual ~Route() {};
 
     // protocol
-    RouteProtocol protocol;
+    RoutingProtocol protocol;
 
     // out iface id.
     int oif;
