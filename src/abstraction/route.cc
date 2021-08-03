@@ -6,6 +6,7 @@ Route::Route() : mpls_stack() {
     oif = 0;
     gw = 0;
     mpls_encap = false;
+    metric = 0;
 }
 
 Ipv4Route::Ipv4Route() : Route() {

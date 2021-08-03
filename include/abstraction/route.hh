@@ -19,6 +19,9 @@ struct Route {
     // gw, in network byte order
     uint32_t gw;
 
+    // metric
+    int metric;
+
     // true if mpls encap on (if false for MplsRoute type - means everything poped)
     bool mpls_encap;
 
