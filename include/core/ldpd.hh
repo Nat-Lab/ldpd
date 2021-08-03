@@ -24,7 +24,7 @@ class LdpFsm;
 
 class Ldpd {
 public:
-    Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router);
+    Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int routesMetric = 9);
     ~Ldpd();
 
     int start();
@@ -124,6 +124,9 @@ private:
 
     // fd for the mcast udp listening socket
     int _ufd;
+
+    // metric to use for routes.
+    int _metric;
 
     // router api
     Router *_router;

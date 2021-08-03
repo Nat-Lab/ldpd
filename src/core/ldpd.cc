@@ -15,7 +15,7 @@
 
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(), _mappings(), _installed_mappings() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) : _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(), _mappings(), _installed_mappings() {
     _running = false;
     _id = routerId;
     _space = labelSpace;
@@ -35,6 +35,8 @@ Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _f
     _router = router;
 
     _msg_id = 0;
+
+    _metric = metric;
 
     scanInterfaces();
 }
@@ -939,6 +941,7 @@ void Ldpd::installMappings() {
 
             std::vector<uint32_t> addresses = _addresses[mappings.first];
 
+            bool local = false;
             Interface *nh_iface = nullptr;
             uint32_t nh_address = 0;
 
@@ -955,16 +958,25 @@ void Ldpd::installMappings() {
                             nh_iface = &iface;
                             break;
                         }
+
+                        if (addr.address.isInSameNetwork(mapping.fec)) {
+                            local = true;
+                            break;
+                        }
                     }
 
-                    if (nh_iface != nullptr) {
+                    if (nh_iface != nullptr || local) {
                         break;
                     }
                 }
 
-                if (nh_iface != nullptr) {
+                if (nh_iface != nullptr || local) {
                     break;
                 }
+            }
+
+            if (local) {
+                continue;
             }
 
             if (nh_iface == nullptr) {
@@ -978,6 +990,7 @@ void Ldpd::installMappings() {
             route->oif = nh_iface->index;
             route->dst = mapping.fec.prefix;
             route->dst_len = mapping.fec.len;
+            route->metric = _metric;
 
             log_debug("adding route: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len);
             log_debug("gw: %s oif %d.\n", inet_ntoa(*(struct in_addr *) &(route->gw)), route->oif);
