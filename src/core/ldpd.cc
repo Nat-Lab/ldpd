@@ -191,6 +191,7 @@ void Ldpd::tick() {
         fsm.second->tick();
     }
 
+    _router->tick();
 }
 
 void Ldpd::run() {
