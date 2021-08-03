@@ -18,10 +18,18 @@ Netlink::Netlink() : _saved() {
     _local.nl_family = AF_NETLINK;
     _local.nl_pid = _pid;
 
+    // 0x4000000 is group for mpls-route. see "lab/mpls-nl-group.c"
+    _local.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_ROUTE | RTMGRP_IPV4_IFADDR | 0x4000000;
+
     _seq = 0;
 
     _buffer = nullptr;
     _bufsz = 0;
+
+    _lc_handler = nullptr;
+    _ac_handler = nullptr;
+    _irc_handler = nullptr;
+    _mrc_handler = nullptr;
 }
 
 Netlink::~Netlink() {
@@ -686,6 +694,130 @@ int Netlink::buildRtAttr(const MplsRoute &route, RtAttr &attrs) {
     attrs.addRawAttribute(RTA_VIA, via_buf, via_val_sz);
 
     return 0;
+}
+
+void Netlink::tick() {
+    uint8_t buffer[8192];
+    
+    memset(buffer, 0, sizeof(buffer));
+
+    struct sockaddr_nl kernel;
+
+    memset(&kernel, 0, sizeof(struct sockaddr_nl));
+
+    kernel.nl_family = AF_NETLINK;
+
+    struct msghdr rslt_hdr;
+    struct iovec rslt_io;
+
+    memset(&rslt_hdr, 0, sizeof(struct msghdr));
+    memset(&rslt_io, 0, sizeof(struct iovec));
+
+    rslt_io.iov_base = buffer;
+    rslt_io.iov_len = sizeof(buffer);
+
+    rslt_hdr.msg_iov = &rslt_io;
+    rslt_hdr.msg_iovlen = 1;
+    rslt_hdr.msg_name = &kernel;
+    rslt_hdr.msg_namelen = sizeof(struct sockaddr_nl);
+
+    ssize_t res = recvmsg(_fd, &rslt_hdr, MSG_DONTWAIT);
+
+    if (res < 0) {
+        if (errno == EINTR || errno == EAGAIN) {
+            return;
+        }
+
+        log_error("recvmsg(): %s (%zu)\n", strerror(errno), res);
+        return;
+    }
+
+    if (res == 0) {
+        return;
+    }
+
+    for (struct nlmsghdr *msg = (struct nlmsghdr *) buffer; NLMSG_OK(msg, res); msg = NLMSG_NEXT(msg, res)) {
+        if (msg->nlmsg_type == RTM_NEWROUTE || msg->nlmsg_type == RTM_DELROUTE) {
+            const struct rtmsg *rt = (const struct rtmsg *) NLMSG_DATA(msg);
+            if (rt->rtm_family == AF_INET) {
+                log_debug("route-change: ipv4 route %s.\n", msg->nlmsg_type == RTM_NEWROUTE ? "added/replaced" : "deleted");
+
+                if (_irc_handler == nullptr) {
+                    continue;
+                }
+
+                Ipv4Route r = Ipv4Route();
+                if (parseNetlinkMessage(r, msg) == PARSE_OK) {
+                    _irc_handler(msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
+                }
+            }
+
+            if (rt->rtm_family == AF_MPLS) {
+                log_debug("route-change: mpls route %s.\n", msg->nlmsg_type == RTM_NEWROUTE ? "added/replaced" : "deleted");
+
+                if (_irc_handler == nullptr) {
+                    continue;
+                }
+
+                MplsRoute r = MplsRoute();
+                if (parseNetlinkMessage(r, msg) == PARSE_OK) {
+                    _mrc_handler(msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
+                }
+            }
+
+            continue;
+        }
+
+        if (msg->nlmsg_type == RTM_NEWLINK || msg->nlmsg_type == RTM_DELLINK) {
+            log_debug("link-change: link %s.\n", msg->nlmsg_type == RTM_NEWLINK ? "added/changed" : "deleted");
+
+            if (_lc_handler == nullptr) {
+                continue;
+            }
+
+            Interface iface = Interface();
+
+            if (parseNetlinkMessage(iface, msg) == PARSE_OK) {
+                _lc_handler(msg->nlmsg_type == RTM_NEWLINK ? NetlinkChange::Added : NetlinkChange::Deleted, iface);
+            }
+
+            continue;
+        }
+
+        if (msg->nlmsg_type == RTM_NEWADDR || msg->nlmsg_type == RTM_DELADDR) {
+            log_debug("address-change: address %s.\n", msg->nlmsg_type == RTM_NEWADDR ? "added/changed" : "deleted");
+
+            if (_lc_handler == nullptr) {
+                continue;
+            }
+
+            InterfaceAddress addr = InterfaceAddress();
+
+            if (parseNetlinkMessage(addr, msg) == PARSE_OK) {
+                _ac_handler(msg->nlmsg_type == RTM_NEWADDR ? NetlinkChange::Added : NetlinkChange::Deleted, addr);
+            }
+
+            continue;
+        }
+
+        log_debug("unhandled netlink message: type %u.\n", msg->nlmsg_type);
+    }
+}
+
+void Netlink::onLinkChanges(linkchange_handler_t handler) {
+    _lc_handler = handler;
+}
+
+void Netlink::onAddrChanges(addrchange_handler_t handler) {
+    _ac_handler = handler;
+}
+
+void Netlink::onIpv4RouteChanges(ipv4_routechange_handler_t handler) {
+    _irc_handler = handler;
+}
+
+void Netlink::onMplsRouteChanges(mpls_routechange_handler_t handler) {
+    _mrc_handler = handler;
 }
 
 }

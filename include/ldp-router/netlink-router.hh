@@ -22,7 +22,11 @@ public:
     bool disconnectFib();
 
 private:
+    void clearCachedFibEntries();
+
     Netlink _nl;
+    std::vector<Route *> _rib;
+    std::vector<Route *> _fib;
 };
 
 }

@@ -27,6 +27,15 @@
 
 namespace ldpd {
 
+enum NetlinkChange {
+    Added, Deleted
+};
+
+typedef void (*linkchange_handler_t)(NetlinkChange change, const Interface &iface);
+typedef void (*addrchange_handler_t)(NetlinkChange change, const InterfaceAddress &addr);
+typedef void (*ipv4_routechange_handler_t)(NetlinkChange change, const Ipv4Route &route);
+typedef void (*mpls_routechange_handler_t)(NetlinkChange change, const MplsRoute &route);
+
 class Netlink {
 public:
     Netlink();
@@ -53,6 +62,15 @@ public:
             RTM_DELROUTE,
             NLM_F_REQUEST | NLM_F_ACK);
     }
+
+    // note: the Interface object passed in WILL NOT have addresses filled.
+    void onLinkChanges(linkchange_handler_t handler);
+    
+    void onAddrChanges(addrchange_handler_t handler);
+    void onIpv4RouteChanges(ipv4_routechange_handler_t handler);
+    void onMplsRouteChanges(mpls_routechange_handler_t handler);
+
+    void tick();
 
 private:
     int sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags);
@@ -88,6 +106,11 @@ private:
     size_t _bufsz;
     
     unsigned int _seq;
+
+    linkchange_handler_t _lc_handler;
+    addrchange_handler_t _ac_handler;
+    ipv4_routechange_handler_t _irc_handler;
+    mpls_routechange_handler_t _mrc_handler;
 };
 
 }

@@ -124,6 +124,11 @@ int main() {
         dump_v4_route(nl);
     }
 
+    while(true) {
+        nl.tick();
+        sleep(1);
+    }
+
     nl.close();
 
     return 0;
