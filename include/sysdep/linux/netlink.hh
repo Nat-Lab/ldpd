@@ -28,7 +28,7 @@
 namespace ldpd {
 
 enum NetlinkChange {
-    Added, Deleted
+    Added = 0, Deleted = 1
 };
 
 typedef void (*linkchange_handler_t)(void *data, NetlinkChange change, const Interface &iface);

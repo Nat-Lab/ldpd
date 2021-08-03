@@ -18,6 +18,8 @@ public:
     uint64_t addRoute(Route *route);
     bool deleteRoute(uint64_t routeIndex);
 
+    void onRouteChange(void* data, ldp_routechange_handler_t handler);
+
     void tick();
 
 private:
@@ -43,6 +45,9 @@ private:
     template <typename T> static void onRouteChange(void *self, NetlinkChange change, const T &route) {
         NetlinkRouter *router = (NetlinkRouter *) self;
         router->handleFibUpdate(change, route);
+        if (router->_onroutechange != nullptr) {
+            router->_onroutechange(route->_routechange_data, (RouteChange) NetlinkChange, &route);
+        }
     }
 
     Netlink _nl;
@@ -51,6 +56,9 @@ private:
     std::vector<Route *> _rib_pending_del;
 
     std::map<uint64_t, Route *> _fib;
+
+    ldp_routechange_handler_t _onroutechange;
+    void *_routechange_data;
 };
 
 }

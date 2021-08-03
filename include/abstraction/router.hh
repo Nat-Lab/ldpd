@@ -1,11 +1,18 @@
 #ifndef LDP_ABSTR_ROUTER_H
 #define LDP_ABSTR_ROUTER_H
+#include "core/ldpd.hh"
 #include "abstraction/interface.hh"
 #include "abstraction/route.hh"
 #include <vector>
 #include <map>
 
 namespace ldpd {
+
+enum RouteChange {
+    Added = 0, Deleted = 1
+};
+
+typedef void (*ldp_routechange_handler_t)(void *data, RouteChange change, const Route *route);
 
 class Router {
 public:
@@ -17,6 +24,8 @@ public:
 
     virtual uint64_t addRoute(Route *route) = 0;
     virtual bool deleteRoute(uint64_t routeIndex) = 0;
+
+    virtual void onRouteChange(void *data, ldp_routechange_handler_t handler) = 0;
 
     virtual void tick() = 0;
 };

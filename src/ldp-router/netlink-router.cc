@@ -14,6 +14,8 @@ NetlinkRouter::NetlinkRouter() : _nl(), _rib(), _rib_pending_del(), _fib() {
     
     _nl.onIpv4RouteChanges(&NetlinkRouter::onRouteChange, this);
     _nl.onMplsRouteChanges(&NetlinkRouter::onRouteChange, this);
+
+    _onroutechange = nullptr;
 }
 
 NetlinkRouter::~NetlinkRouter() {
@@ -159,6 +161,11 @@ void NetlinkRouter::pushRib() {
 
         log_error("failed to add route - will retry.\n");
     }
+}
+
+void NetlinkRouter::onRouteChange(void* data, ldp_routechange_handler_t handler) {
+    _onroutechange = handler;
+    _routechange_data = data;
 }
 
 void NetlinkRouter::tick() {
