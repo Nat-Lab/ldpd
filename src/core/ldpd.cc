@@ -1097,4 +1097,48 @@ void Ldpd::installMappings() {
     }
 }
 
+void Ldpd::handleNewSession(LdpFsm* of) {
+    // send address list, label mapping, etc.
+
+    LdpPdu pdu = LdpPdu();
+
+    LdpMessage *addr_msg = new LdpMessage();
+    pdu.addMessage(addr_msg);
+    
+    addr_msg->setType(LDP_MSGTYPE_ADDRESS);
+    addr_msg->setId(getNextMessageId());
+
+    LdpRawTlv *addr_list_tlv = new LdpRawTlv();
+    addr_msg->addTlv(addr_list_tlv);
+
+    addr_list_tlv->setType(LDP_TLVTYPE_ADDRESS_LIST);
+    
+    LdpAddressTlvValue addr_list_val = LdpAddressTlvValue();
+
+    // todo: handle interface/addr changes
+    for (const Interface &iface : _ifaces) {
+        if (std::find(_ldp_ifaces.begin(), _ldp_ifaces.end(), iface.ifname) != _ldp_ifaces.end()) {
+            for (const InterfaceAddress &addr : iface.addresses) {
+                addr_list_val.addAddress(addr.address.prefix);
+            }
+        }
+    }
+
+    if (addr_list_val.getAddresses().size() == 0) {
+        log_warn("no addresses on any of the interfaces, what?\n");
+        return;
+    }
+
+    addr_list_tlv->setValue(&addr_list_val);
+    addr_msg->recalculateLength();
+
+    // don't need recalc-len for pdu, fsm does it in send()
+    of->send(pdu);
+
+    pdu.clearMessages();
+
+    // todo: send label mappings
+
+}
+
 }

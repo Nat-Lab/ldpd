@@ -86,6 +86,7 @@ ssize_t LdpFsm::receive(const uint8_t *packet, size_t size) {
                 return -1;
             }
 
+            _ldpd->handleNewSession(this);
             changeState(LdpSessionState::Operational);
             continue;
         }
