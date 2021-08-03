@@ -3,6 +3,7 @@
 #include "ldp-message/ldp-message.hh"
 #include "abstraction/router.hh"
 #include "ldp-tlv/ldp-tlv.hh"
+#include "core/label-mapping.hh"
 #include <time.h>
 #include <stdint.h>
 #include <map>
@@ -88,6 +89,12 @@ private:
 
     // transport addresses leared from hellos, FIXME: what if another lsr w/ same id?
     std::map<uint64_t, uint32_t> _transports;
+
+    // addresses of the peers.
+    std::map<uint64_t, std::vector<uint32_t>> _addresses;
+
+    // mappings of peers.
+    std::map<uint64_t, std::vector<LdpLabelMapping>> _mappings;
 
     // interface cache
     std::vector<Interface> _ifaces;

@@ -13,7 +13,7 @@
 
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _holds(), _transports() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(), _mappings() {
     _running = false;
     _id = routerId;
     _space = labelSpace;
@@ -285,6 +285,8 @@ void Ldpd::setKeepaliveTimer(uint16_t timer) {
 
 ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
     uint32_t nei_id = from->getNeighborId();
+    uint64_t key = LDP_KEY(nei_id, from->getNeighborLabelSpace());
+
     const char *nei_id_str = inet_ntoa(*(struct in_addr *) &(nei_id));
 
     if (msg->getType() == LDP_MSGTYPE_NOTIFICATION) {
@@ -340,8 +342,32 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
         return msg->length();
     }
 
-    if (msg->getType() == LDP_MSGTYPE_ADDRESS) { // todo
+    if (msg->getType() == LDP_MSGTYPE_ADDRESS) {
         log_debug("got address list from ldp session with %s.\n", nei_id_str);
+
+        const LdpRawTlv *addrs = msg->getTlv(LDP_TLVTYPE_ADDRESS_LIST);
+
+        if (addrs == nullptr) {
+            log_error("address mseesge from %s does not have a address-list tlv.\n", nei_id_str);
+            from->sendNotification(msg->getId(), 0, LDP_SC_MISSING_MSG_PARAM);
+            return -1;
+        }
+
+        LdpAddressTlvValue *addrs_val = (LdpAddressTlvValue *) addrs->getParsedValue();
+
+        if (addrs_val == nullptr) {
+            log_error("cannot understand the address-list tlv in address message from %s.\n", nei_id_str);
+            from->sendNotification(msg->getId(), addrs->getType(), LDP_SC_MALFORMED_TLV_VAL);
+            return -1;
+        }
+
+        _addresses[key] = std::vector<uint32_t>(addrs_val->getAddresses());
+
+        for (uint32_t &addr : _addresses[key]) {
+            log_debug("address: %s.\n", inet_ntoa(*(struct in_addr *) &(addr)));
+        }
+
+        delete addrs_val;
 
         return msg->length();
     }
@@ -354,6 +380,79 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
 
     if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) { // todo
         log_debug("got label mapping from ldp session with %s.\n", nei_id_str);
+
+        const LdpRawTlv *fec = msg->getTlv(LDP_TLVTYPE_FEC);
+
+        if (fec == nullptr) {
+            log_error("mapping mseesge from %s does not have a fec tlv.\n", nei_id_str);
+            from->sendNotification(msg->getId(), 0, LDP_SC_MISSING_MSG_PARAM);
+            return -1;
+        }
+
+        LdpFecTlvValue *fec_val = (LdpFecTlvValue *) fec->getParsedValue();
+
+        if (fec_val == nullptr) {
+            log_error("cannot understand the fec tlv in mapping message from %s.\n", nei_id_str);
+            from->sendNotification(msg->getId(), fec->getType(), LDP_SC_MALFORMED_TLV_VAL);
+            return -1;
+        }
+
+        const LdpRawTlv *lbl = msg->getTlv(LDP_TLVTYPE_GENERIC_LABEL); // todo: other label?
+
+        if (lbl == nullptr) {
+            log_error("mapping mseesge from %s does not have a label tlv.\n", nei_id_str);
+            from->sendNotification(msg->getId(), 0, LDP_SC_MISSING_MSG_PARAM);
+            return -1;
+        }
+
+        LdpGenericLabelTlvValue *lbl_val = (LdpGenericLabelTlvValue *) lbl->getParsedValue();
+
+        if (lbl_val == nullptr) {
+            log_error("cannot understand the label tlv in mapping message from %s.\n", nei_id_str);
+            from->sendNotification(msg->getId(), lbl->getType(), LDP_SC_MALFORMED_TLV_VAL);
+            return -1;
+        }
+
+        LdpLabelMapping mapping = LdpLabelMapping();
+
+        mapping.label = lbl_val->getLabel();
+        delete lbl_val;
+
+        log_debug("label: %u\n", mapping.label);
+
+        for (const LdpFecElement *el : fec_val->getElements()) {
+            if (el->getType() == 0x01) {
+                Prefix prefix = Prefix();
+
+                prefix.prefix = 0;
+                prefix.len = 0;
+                
+                mapping.fec.push_back(prefix);
+
+                log_debug("prefix: 0.0.0.0/0.\n");
+            }
+
+            if (el->getType() == 0x02) {
+                const LdpFecPrefixElement *e = (LdpFecPrefixElement *) el;
+
+                Prefix prefix = Prefix();
+                
+                prefix.len = e->getPrefixLength();
+                prefix.prefix = e->getPrefix();
+
+                mapping.fec.push_back(prefix);
+
+                log_debug("prefix: %s/%d.\n", inet_ntoa(*(struct in_addr *) &(prefix.prefix)), prefix.len);
+            }
+        }
+
+        delete fec_val;
+
+        if (_mappings.count(key) == 0) {
+            _mappings[key] = std::vector<LdpLabelMapping>();
+        }
+
+        _mappings[key].push_back(mapping);
 
         return msg->length();
     }
@@ -424,6 +523,9 @@ void Ldpd::removeSession(LdpFsm* of) {
             break;
         }
     }
+
+    _addresses.erase(key);
+    _mappings.erase(key);
 
     uint32_t nei_id = (uint32_t) (key >> sizeof(uint16_t));
 
