@@ -10,6 +10,20 @@ NetlinkRouter::NetlinkRouter() : _nl(), _rib(), _rib_pending_del(), _fib() {
 }
 
 NetlinkRouter::~NetlinkRouter() {
+    for (std::pair<uint64_t, Route *> r : _rib) {
+        Route *route = r.second;
+
+        if (route->getType() == RouteType::Mpls) {
+            MplsRoute *r = (MplsRoute *) route;
+            _nl.addRoute(*r);
+        }
+
+        if (route->getType() == RouteType::Ipv4) {
+            Ipv4Route *r = (Ipv4Route *) route;
+            _nl.addRoute(*r);
+        }
+    }
+
     _nl.close();
 }
 
