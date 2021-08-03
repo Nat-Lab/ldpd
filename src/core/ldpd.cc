@@ -976,6 +976,7 @@ void Ldpd::installMappings() {
             }
 
             if (local) {
+                _installed_mappings.push_back(mapping);
                 continue;
             }
 
