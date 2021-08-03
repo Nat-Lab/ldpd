@@ -423,8 +423,8 @@ int Netlink::procressMplsRouteResults(void *routes, const struct nlmsghdr *msg) 
 }
 
 int Netlink::parseNetlinkMessage(InterfaceAddress &dst, const struct nlmsghdr *src) {
-    if (src->nlmsg_type != RTM_NEWADDR) {
-        log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWLINK);
+    if (src->nlmsg_type != RTM_NEWADDR && src->nlmsg_type != RTM_DELADDR) {
+        log_error("bad nlmsg type %u.\n", src->nlmsg_type);
         return PARSE_SKIP;
     }
 
@@ -450,8 +450,8 @@ int Netlink::parseNetlinkMessage(InterfaceAddress &dst, const struct nlmsghdr *s
 }
 
 int Netlink::parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src) {
-    if (src->nlmsg_type != RTM_NEWLINK) {
-        log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWLINK);
+    if (src->nlmsg_type != RTM_NEWLINK && src->nlmsg_type != RTM_DELLINK) {
+        log_error("bad nlmsg type %u.\n", src->nlmsg_type);
         return PARSE_SKIP;
     }
 
@@ -473,8 +473,8 @@ int Netlink::parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src) {
 }
 
 int Netlink::parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src) {
-    if (src->nlmsg_type != RTM_NEWROUTE) {
-        log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
+    if (src->nlmsg_type != RTM_NEWROUTE && src->nlmsg_type != RTM_DELROUTE) {
+        log_error("bad nlmsg type %u.\n", src->nlmsg_type);
         return PARSE_SKIP;
     }
 
@@ -544,8 +544,8 @@ int Netlink::parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src) {
 }
 
 int Netlink::parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src) {
-    if (src->nlmsg_type != RTM_NEWROUTE) {
-        log_error("bad nlmsg type %u, want %u.\n", src->nlmsg_type, RTM_NEWROUTE);
+    if (src->nlmsg_type != RTM_NEWROUTE && src->nlmsg_type != RTM_DELROUTE) {
+        log_error("bad nlmsg type %u.\n", src->nlmsg_type);
         return PARSE_SKIP;
     }
 
