@@ -18,8 +18,16 @@ RouteType Ipv4Route::getType() const {
     return RouteType::Ipv4;
 }
 
+uint64_t Ipv4Route::hash() const {
+    return ((uint64_t) dst << 32) + ((uint64_t) dst_len << 24); 
+}
+
 MplsRoute::MplsRoute() : Route() {
     in_label = 0;
+}
+
+uint64_t MplsRoute::hash() const {
+    return in_label;
 }
 
 RouteType MplsRoute::getType() const {

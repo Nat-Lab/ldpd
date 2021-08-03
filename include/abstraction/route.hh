@@ -11,6 +11,7 @@ enum RouteType {
 
 struct Route {
     Route();
+    virtual ~Route() {};
 
     // out iface id.
     int oif;
@@ -25,6 +26,7 @@ struct Route {
     std::vector<uint32_t> mpls_stack;
 
     virtual RouteType getType() const = 0;
+    virtual uint64_t hash() const = 0;
 
 };
 
@@ -41,6 +43,7 @@ struct Ipv4Route : public Route {
     uint8_t mpls_ttl;
 
     virtual RouteType getType() const;
+    virtual uint64_t hash() const;
 };
 
 struct MplsRoute : public Route {
@@ -50,6 +53,7 @@ struct MplsRoute : public Route {
     uint32_t in_label;
 
     virtual RouteType getType() const;
+    virtual uint64_t hash() const;
 };
 
 } 

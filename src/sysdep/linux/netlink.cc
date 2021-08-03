@@ -804,20 +804,24 @@ void Netlink::tick() {
     }
 }
 
-void Netlink::onLinkChanges(linkchange_handler_t handler) {
+void Netlink::onLinkChanges(linkchange_handler_t handler, void *data) {
     _lc_handler = handler;
+    _lc_handler_d = data;
 }
 
 void Netlink::onAddrChanges(addrchange_handler_t handler, void *data) {
     _ac_handler = handler;
+    _ac_handler_d = data;
 }
 
 void Netlink::onIpv4RouteChanges(ipv4_routechange_handler_t handler, void *data) {
     _irc_handler = handler;
+    _irc_handler_d = data;
 }
 
 void Netlink::onMplsRouteChanges(mpls_routechange_handler_t handler, void *data) {
     _mrc_handler = handler;
+    _mrc_handler_d = data;
 }
 
 }

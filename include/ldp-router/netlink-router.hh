@@ -12,21 +12,45 @@ public:
 
     std::vector<Interface> getInterfaces();
 
-    const std::vector<const Route *> getFibRoutes();
-    const std::map<uint64_t, const Route *> getRibRoutes();
+    std::map<uint64_t, Route *> getRoutes();
+    std::map<uint64_t, Route *> getFib();
 
-    uint64_t addRibRoute(const Route *route);
-    bool deleteRibRoute(uint64_t routeIndex);
+    uint64_t addRoute(Route *route);
+    bool deleteRoute(uint64_t routeIndex);
 
-    bool syncFib();
-    bool disconnectFib();
+    void tick();
 
 private:
-    void clearCachedFibEntries();
+
+    void fullSync();
+
+    void pushRib();
+    void fetchFib();
+
+    template <typename T> void handleFibUpdate(NetlinkChange change, const T &route) {
+        uint64_t key = route.hash();
+
+        if (_fib.count(key) != 0) {
+            delete _fib[key];
+            _fib.erase(key);
+        }
+
+        if (change == NetlinkChange::Added) {
+            _fib[key] = new T(route);
+        }
+    }
+
+    template <typename T> static void onRouteChange(void *self, NetlinkChange change, const T &route) {
+        NetlinkRouter *router = (NetlinkRouter *) self;
+        router->handleFibUpdate(change, route);
+    }
 
     Netlink _nl;
-    std::vector<Route *> _rib;
-    std::vector<Route *> _fib;
+    std::map<uint64_t, Route *> _rib;
+
+    std::vector<Route *> _rib_pending_del;
+
+    std::map<uint64_t, Route *> _fib;
 };
 
 }

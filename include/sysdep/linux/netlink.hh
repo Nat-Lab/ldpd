@@ -64,7 +64,7 @@ public:
     }
 
     // note: the Interface object passed in WILL NOT have addresses filled.
-    void onLinkChanges(linkchange_handler_t handler);
+    void onLinkChanges(linkchange_handler_t handler, void *data);
     
     void onAddrChanges(addrchange_handler_t handler, void *data);
     void onIpv4RouteChanges(ipv4_routechange_handler_t handler, void *data);
