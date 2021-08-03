@@ -6,6 +6,7 @@ namespace ldpd {
 
 struct Prefix {
     Prefix();
+    Prefix(uint32_t prefix, uint8_t len);
 
     bool operator==(const Prefix &other) const;
     bool isInSameNetwork(const Prefix &other) const;

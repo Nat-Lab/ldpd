@@ -9,6 +9,11 @@ Prefix::Prefix() {
     len = 0;
 }
 
+Prefix::Prefix(uint32_t prefix, uint8_t len) {
+    this->prefix = prefix;
+    this->len = len;
+}
+
 bool Prefix::operator==(const Prefix &other) const {
     return prefix == other.prefix && len == other.len;
 }

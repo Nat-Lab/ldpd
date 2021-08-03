@@ -4,6 +4,7 @@
 #include "abstraction/router.hh"
 #include "ldp-tlv/ldp-tlv.hh"
 #include "core/label-mapping.hh"
+#include "core/filter.hh"
 #include <time.h>
 #include <stdint.h>
 #include <map>
@@ -33,6 +34,9 @@ public:
     void run();
 
     void addInterface(std::string ifname);
+
+    void setImportPolicy(const RoutePolicy &policy);
+    void setExportPolicy(const RoutePolicy &policy);
 
     uint32_t getRouterId() const;
     uint16_t getLabelSpace() const;
@@ -79,6 +83,9 @@ private:
     uint32_t _msg_id;
 
     bool _running;
+
+    RoutePolicy _import;
+    RoutePolicy _export;
 
     // interfaces to run ldp on
     std::vector<std::string> _ldp_ifaces;

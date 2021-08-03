@@ -28,6 +28,11 @@ int main() {
     ldpd.addInterface("ens33");
     ldpd.addInterface("lo");
 
+    ldpd::RoutePolicy ex = ldpd::RoutePolicy(ldpd::FilterAction::Reject);
+    ex.addFilter(ldpd::RouteFilter(ldpd::Prefix(inet_addr("8.8.8.8"), 32), ldpd::FilterMatchType::Exact, ldpd::FilterAction::Accept));
+
+    ldpd.setExportPolicy(ex);
+
     ldpd.start();
     ldpd.run();
 

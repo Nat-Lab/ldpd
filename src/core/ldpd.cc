@@ -15,7 +15,11 @@
 
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) : _ldp_ifaces(), _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(), _mappings(), _installed_mappings() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) : 
+    _import(FilterAction::Accept), _export(FilterAction::Accept), _ldp_ifaces(),
+    _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(),
+    _mappings(), _installed_mappings() {
+
     _running = false;
     _id = routerId;
     _space = labelSpace;
@@ -1029,7 +1033,7 @@ void Ldpd::installMappings() {
 
             std::vector<uint32_t> addresses = _addresses[mappings.first];
 
-            bool local = false;
+            bool local = false, filtered = false;
             Interface *nh_iface = nullptr;
             uint32_t nh_address = 0;
 
@@ -1063,7 +1067,13 @@ void Ldpd::installMappings() {
                 }
             }
 
-            if (local) {
+            if (_export.apply(mapping.fec) != FilterAction::Accept) {
+                log_info("mapping rejected by export filter: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
+                // todo: reject mapping??
+                filtered = true;
+            }
+
+            if (local || filtered) {
                 _installed_mappings.push_back(mapping);
                 continue;
             }
@@ -1139,6 +1149,24 @@ void Ldpd::handleNewSession(LdpFsm* of) {
 
     // todo: send label mappings
 
+}
+
+void Ldpd::setImportPolicy(const RoutePolicy &policy) {
+    if (_running) {
+        log_error("can't change import/export policy while running.\n");
+        return;
+    }
+
+    _import = policy;
+}
+
+void Ldpd::setExportPolicy(const RoutePolicy &policy) {
+    if (_running) {
+        log_error("can't change import/export policy while running.\n");
+        return;
+    }
+
+    _export = policy;
 }
 
 }

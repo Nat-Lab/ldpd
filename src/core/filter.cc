@@ -2,7 +2,7 @@
 
 namespace ldpd {
 
-RouteFilter::RouteFilter(const Prefix &sourcePrefix, FilterMatchType type, FilterAction action, uint8_t upto = 32) : source(sourcePrefix) {
+RouteFilter::RouteFilter(const Prefix &sourcePrefix, FilterMatchType type, FilterAction action, uint8_t upto) : source(sourcePrefix) {
     this->type = type;
     this->action = action;
     this->upto = upto;
@@ -23,6 +23,10 @@ FilterAction RouteFilter::apply(const Prefix &target) const {
 
 RoutePolicy::RoutePolicy(FilterAction defaultAction) : terms() {
     this->defaultAction = defaultAction;
+}
+
+void RoutePolicy::addFilter(const RouteFilter &filter) {
+    terms.push_back(filter);
 }
 
 FilterAction RoutePolicy::apply(const Prefix &target) const {
