@@ -7,13 +7,17 @@
 namespace ldpd {
 
 struct InterfaceAddress {
+    InterfaceAddress() : address() {};
     int ifindex;
 
-    uint32_t address;
-    uint8_t len;
+    Prefix address;
 };
 
 struct Interface {
+    Interface() : ifname("unset"), addresses() {
+        index = 0;
+    }
+
     int index;
 
     std::string ifname;

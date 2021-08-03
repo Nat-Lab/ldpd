@@ -7,10 +7,12 @@
 namespace ldpd {
 
 struct LdpLabelMapping {
-    LdpLabelMapping() : fec() {};
+    LdpLabelMapping();
+
+    bool operator==(const LdpLabelMapping &other);
 
     uint32_t label;
-    std::vector<Prefix> fec;
+    Prefix fec;
 };
 
 }

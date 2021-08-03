@@ -11,9 +11,11 @@
 #include <string.h>
 #include <errno.h>
 
+#include <algorithm>
+
 namespace ldpd {
 
-Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(), _mappings() {
+Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router) : _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(), _mappings(), _installed_mappings() {
     _running = false;
     _id = routerId;
     _space = labelSpace;
@@ -51,7 +53,7 @@ int Ldpd::start() {
 
     for (const Interface &iface : _ifaces) {
         for (const InterfaceAddress &addr : iface.addresses) {
-            if (addr.address == _transport) {
+            if (addr.address.prefix == _transport) {
                 transport_local = true;
                 break;
             }
@@ -190,6 +192,8 @@ void Ldpd::tick() {
     for (std::pair<uint64_t, LdpFsm *> fsm : _fsms) {
         fsm.second->tick();
     }
+
+    installMappings();
 
     _router->tick();
 }
@@ -378,7 +382,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
         return msg->length();
     }
 
-    if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) { // todo
+    if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) {
         log_debug("got label mapping from ldp session with %s.\n", nei_id_str);
 
         const LdpRawTlv *fec = msg->getTlv(LDP_TLVTYPE_FEC);
@@ -413,46 +417,39 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
             return -1;
         }
 
-        LdpLabelMapping mapping = LdpLabelMapping();
+        // todo: check and reject conflicting labels
 
-        mapping.label = lbl_val->getLabel();
-        delete lbl_val;
+        if (_mappings.count(key) == 0) {
+            _mappings[key] = std::vector<LdpLabelMapping>();
+        }
 
-        log_debug("label: %u\n", mapping.label);
+        log_debug("label: %u\n", lbl_val->getLabel());
 
         for (const LdpFecElement *el : fec_val->getElements()) {
+            LdpLabelMapping mapping = LdpLabelMapping();
+            mapping.label = lbl_val->getLabel();
+
             if (el->getType() == 0x01) {
-                Prefix prefix = Prefix();
-
-                prefix.prefix = 0;
-                prefix.len = 0;
+                mapping.fec.prefix = 0;
+                mapping.fec.len = 0;
                 
-                mapping.fec.push_back(prefix);
-
                 log_debug("prefix: 0.0.0.0/0.\n");
             }
 
             if (el->getType() == 0x02) {
                 const LdpFecPrefixElement *e = (LdpFecPrefixElement *) el;
 
-                Prefix prefix = Prefix();
-                
-                prefix.len = e->getPrefixLength();
-                prefix.prefix = e->getPrefix();
+                mapping.fec.len = e->getPrefixLength();
+                mapping.fec.prefix = e->getPrefix();
 
-                mapping.fec.push_back(prefix);
-
-                log_debug("prefix: %s/%d.\n", inet_ntoa(*(struct in_addr *) &(prefix.prefix)), prefix.len);
+                log_debug("prefix: %s/%d.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
             }
+
+            _mappings[key].push_back(mapping);
         }
 
+        delete lbl_val;
         delete fec_val;
-
-        if (_mappings.count(key) == 0) {
-            _mappings[key] = std::vector<LdpLabelMapping>();
-        }
-
-        _mappings[key].push_back(mapping);
 
         return msg->length();
     }
@@ -525,7 +522,14 @@ void Ldpd::removeSession(LdpFsm* of) {
     }
 
     _addresses.erase(key);
-    _mappings.erase(key);
+
+    if (_mappings.count(key) != 0) {
+        for (LdpLabelMapping &mapping : _mappings[key]) {
+            _pending_delete_mappings.push_back(mapping);
+        }
+
+        _mappings.erase(key);
+    }
 
     uint32_t nei_id = (uint32_t) (key >> sizeof(uint16_t));
 
@@ -556,7 +560,7 @@ void Ldpd::handleHello() {
     // check if msg is from self
     for (const Interface &iface : _ifaces) {
         for (const InterfaceAddress &addr : iface.addresses) {
-            if (addr.address == remote.sin_addr.s_addr) {
+            if (addr.address.prefix == remote.sin_addr.s_addr) {
                 return;
             }
         }
@@ -919,6 +923,76 @@ uint16_t Ldpd::getHoldTime(uint64_t of) {
     }
 
     return peer_hold < _hold ? peer_hold : _hold;
+}
+
+void Ldpd::installMappings() {
+    for (std::pair<uint64_t, std::vector<LdpLabelMapping>> mappings : _mappings) {
+        for (LdpLabelMapping &mapping : mappings.second) {
+            if (_addresses.count(mappings.first) == 0) {
+                log_error("mapping exists, but no addresses?\n");
+                continue;
+            }
+
+            if (std::find(_installed_mappings.begin(), _installed_mappings.end(), mapping) != _installed_mappings.end()) {
+                continue;
+            }
+
+            std::vector<uint32_t> addresses = _addresses[mappings.first];
+
+            Interface *nh_iface = nullptr;
+            uint32_t nh_address = 0;
+
+            for (Interface &iface : _ifaces) {
+                for (InterfaceAddress &addr : iface.addresses) {
+                    Prefix peer = Prefix();
+                    peer.len = 32;
+                    
+                    for (uint32_t &address : addresses) {
+                        peer.prefix = address;
+
+                        if (addr.address.includes(peer)) {
+                            nh_address = address;
+                            nh_iface = &iface;
+                            break;
+                        }
+                    }
+
+                    if (nh_iface != nullptr) {
+                        break;
+                    }
+                }
+
+                if (nh_iface != nullptr) {
+                    break;
+                }
+            }
+
+            if (nh_iface == nullptr) {
+                log_error("cannot find a way to reach the neighbor.\n");
+                continue;
+            }
+
+            Ipv4Route *route = new Ipv4Route();
+
+            route->gw = nh_address;
+            route->oif = nh_iface->index;
+            route->dst = mapping.fec.prefix;
+            route->dst_len = mapping.fec.len;
+
+            log_debug("adding route: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len);
+            log_debug("gw: %s oif %d.\n", inet_ntoa(*(struct in_addr *) &(route->gw)), route->oif);
+
+            if (mapping.label != 3) {
+                route->mpls_encap = true;
+                route->mpls_stack.push_back(mapping.label);
+                log_debug("out label: %u.\n", mapping.label);
+            }
+            
+            _router->addRoute(route);
+
+            _installed_mappings.push_back(mapping);
+        }
+    }
 }
 
 }

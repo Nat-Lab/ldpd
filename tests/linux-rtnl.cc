@@ -66,7 +66,7 @@ int main() {
     for (const ldpd::Interface &iface : ifaces) {
         printf("%d: %s ", iface.index, iface.ifname.c_str());
         for (const ldpd::InterfaceAddress &addr : iface.addresses) {
-            printf("%s/%d ", inet_ntoa(*(in_addr *) &(addr.address)), addr.len);
+            printf("%s/%d ", inet_ntoa(*(in_addr *) &(addr.address.prefix)), addr.address.len);
         }
         printf("\n");
     }

@@ -439,9 +439,9 @@ int Netlink::parseNetlinkMessage(InterfaceAddress &dst, const struct nlmsghdr *s
     attrs.parse((uint8_t *) IFA_RTA(addr), RTM_PAYLOAD(src));
 
     dst.ifindex = addr->ifa_index;
-    dst.len = addr->ifa_prefixlen;
+    dst.address.len = addr->ifa_prefixlen;
 
-    if (!attrs.getAttributeValue(IFA_ADDRESS, dst.address)) {
+    if (!attrs.getAttributeValue(IFA_ADDRESS, dst.address.prefix)) {
         log_error("address has no ifa_address.\n");
         return PARSE_SKIP;
     }

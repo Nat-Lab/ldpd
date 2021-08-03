@@ -65,6 +65,8 @@ private:
     void sendHello();
     void createSession(uint32_t nei_id, uint16_t nei_ls);
 
+    void installMappings();
+
     uint16_t getHoldTime(uint64_t of);
 
     uint32_t _id;
@@ -95,6 +97,9 @@ private:
 
     // mappings of peers.
     std::map<uint64_t, std::vector<LdpLabelMapping>> _mappings;
+
+    std::vector<LdpLabelMapping> _installed_mappings;
+    std::vector<LdpLabelMapping> _pending_delete_mappings;
 
     // interface cache
     std::vector<Interface> _ifaces;
