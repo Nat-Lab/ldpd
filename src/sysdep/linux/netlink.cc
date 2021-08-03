@@ -748,7 +748,7 @@ void Netlink::tick() {
 
                 Ipv4Route r = Ipv4Route();
                 if (parseNetlinkMessage(r, msg) == PARSE_OK) {
-                    _irc_handler(msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
+                    _irc_handler(_irc_handler_d, msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
                 }
             }
 
@@ -761,7 +761,7 @@ void Netlink::tick() {
 
                 MplsRoute r = MplsRoute();
                 if (parseNetlinkMessage(r, msg) == PARSE_OK) {
-                    _mrc_handler(msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
+                    _mrc_handler(_mrc_handler_d, msg->nlmsg_type == RTM_NEWROUTE ? NetlinkChange::Added : NetlinkChange::Deleted, r);
                 }
             }
 
@@ -778,7 +778,7 @@ void Netlink::tick() {
             Interface iface = Interface();
 
             if (parseNetlinkMessage(iface, msg) == PARSE_OK) {
-                _lc_handler(msg->nlmsg_type == RTM_NEWLINK ? NetlinkChange::Added : NetlinkChange::Deleted, iface);
+                _lc_handler(_lc_handler_d, msg->nlmsg_type == RTM_NEWLINK ? NetlinkChange::Added : NetlinkChange::Deleted, iface);
             }
 
             continue;
@@ -794,7 +794,7 @@ void Netlink::tick() {
             InterfaceAddress addr = InterfaceAddress();
 
             if (parseNetlinkMessage(addr, msg) == PARSE_OK) {
-                _ac_handler(msg->nlmsg_type == RTM_NEWADDR ? NetlinkChange::Added : NetlinkChange::Deleted, addr);
+                _ac_handler(_ac_handler_d, msg->nlmsg_type == RTM_NEWADDR ? NetlinkChange::Added : NetlinkChange::Deleted, addr);
             }
 
             continue;
@@ -808,15 +808,15 @@ void Netlink::onLinkChanges(linkchange_handler_t handler) {
     _lc_handler = handler;
 }
 
-void Netlink::onAddrChanges(addrchange_handler_t handler) {
+void Netlink::onAddrChanges(addrchange_handler_t handler, void *data) {
     _ac_handler = handler;
 }
 
-void Netlink::onIpv4RouteChanges(ipv4_routechange_handler_t handler) {
+void Netlink::onIpv4RouteChanges(ipv4_routechange_handler_t handler, void *data) {
     _irc_handler = handler;
 }
 
-void Netlink::onMplsRouteChanges(mpls_routechange_handler_t handler) {
+void Netlink::onMplsRouteChanges(mpls_routechange_handler_t handler, void *data) {
     _mrc_handler = handler;
 }
 
