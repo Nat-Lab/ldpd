@@ -152,7 +152,7 @@ int Netlink::sendRouteMessage(const Route *route, unsigned short type, unsigned 
     ptr += sizeof(struct rtmsg);
 
     rtmsg->rtm_table = RT_TABLE_MAIN;
-    rtmsg->rtm_protocol = RTPROT_STATIC;
+    rtmsg->rtm_protocol = (unsigned char) route->protocol;
     rtmsg->rtm_scope = RT_SCOPE_UNIVERSE;
     rtmsg->rtm_type = RTN_UNICAST;
 
@@ -485,7 +485,7 @@ int Netlink::parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src) {
         return PARSE_SKIP;
     }
 
-
+    dst.protocol = (RouteProtocol) rt->rtm_protocol;
     dst.dst_len = rt->rtm_dst_len;
     dst.mpls_encap = false;
     dst.mpls_stack = std::vector<uint32_t>();
@@ -556,6 +556,7 @@ int Netlink::parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src) {
         return PARSE_SKIP;
     }
 
+    dst.protocol = (RouteProtocol) rt->rtm_protocol;
     dst.mpls_encap = false;
     dst.mpls_stack = std::vector<uint32_t>();
 
