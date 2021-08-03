@@ -1118,7 +1118,7 @@ void Ldpd::handleNewSession(LdpFsm* of) {
     // todo: handle interface/addr changes
     for (const Interface &iface : _ifaces) {
         if (std::find(_ldp_ifaces.begin(), _ldp_ifaces.end(), iface.ifname) != _ldp_ifaces.end()) {
-            for (const InterfaceAddress &addr : iface.addresses) {
+            for (const InterfaceAddress &addr : iface.addresses) { // todo: filter out martian (127/8, etc)?
                 addr_list_val.addAddress(addr.address.prefix);
             }
         }
