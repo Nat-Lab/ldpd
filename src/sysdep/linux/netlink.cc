@@ -694,19 +694,20 @@ int Netlink::buildRtAttr(const MplsRoute &route, RtAttr &attrs) {
     }
 
     attrs.addAttribute(RTA_OIF, route.oif);
-    attrs.addAttribute(RTA_PRIORITY, route.metric);
 
     uint32_t lbl_val = htonl(route.in_label << 12 | 0x100);
     attrs.addAttribute(RTA_DST, lbl_val);
 
-    size_t via_val_sz = sizeof(struct rtvia) + sizeof(uint32_t);
-    uint8_t via_buf[sizeof(struct rtvia) + sizeof(uint32_t)];
+    if (route.gw != 0) {
+        size_t via_val_sz = sizeof(struct rtvia) + sizeof(uint32_t);
+        uint8_t via_buf[sizeof(struct rtvia) + sizeof(uint32_t)];
 
-    struct rtvia *via = (struct rtvia *) via_buf;
-    via->rtvia_family = AF_INET;
-    memcpy(via_buf + sizeof(struct rtvia), &(route.gw), sizeof(uint32_t));
+        struct rtvia *via = (struct rtvia *) via_buf;
+        via->rtvia_family = AF_INET;
+        memcpy(via_buf + sizeof(struct rtvia), &(route.gw), sizeof(uint32_t));
 
-    attrs.addRawAttribute(RTA_VIA, via_buf, via_val_sz);
+        attrs.addRawAttribute(RTA_VIA, via_buf, via_val_sz);
+    }
 
     return 0;
 }
