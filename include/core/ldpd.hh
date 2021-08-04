@@ -84,6 +84,8 @@ private:
 
     uint32_t getNextLabel() const;
 
+    bool isEquivalentMappingActive(bool local, const LdpLabelMapping &mapping);
+
     uint32_t _id;
     uint16_t _space;
     uint32_t _transport;
@@ -118,7 +120,6 @@ private:
 
     // mappings of peers.
     std::map<uint64_t, std::set<LdpLabelMapping>> _remote_mappings;
-    std::set<LdpLabelMapping> _installed_remote_mappings;
     std::set<LdpLabelMapping> _rejected_remote_mappings;
     std::set<LdpLabelMapping> _pending_delete_remote_mappings;
 
@@ -130,7 +131,6 @@ private:
 
     // local mappings
     std::set<LdpLabelMapping> _local_mappings;
-    std::set<LdpLabelMapping> _installed_local_mappings;
     std::set<LdpLabelMapping> _pending_delete_local_mappings;
 
     // timers
