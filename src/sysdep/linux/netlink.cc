@@ -575,16 +575,16 @@ int Netlink::parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src) {
 
     dst.in_label = ntohl(dst.in_label) >> 12;
 
-    const struct rtvia *via;
+    const struct rtvia *via = nullptr;
 
-    if (!attrs.getAttributePointer(RTA_VIA, via)) { log_warn("ignored a route w/ no rta_via.\n"); return PARSE_SKIP; }
+    if (attrs.getAttributePointer(RTA_VIA, via)) {
+        if (via->rtvia_family != AF_INET) {
+            log_error("unsupported af: %u\n", via->rtvia_family);
+            return PARSE_SKIP;
+        }
 
-    if (via->rtvia_family != AF_INET) {
-        log_error("unsupported af: %u\n", via->rtvia_family);
-        return PARSE_SKIP;
+        dst.gw = *(uint32_t *) via->rtvia_addr;  
     }
-
-    dst.gw = *(uint32_t *) via->rtvia_addr;   
 
     const uint32_t *labels;
 
