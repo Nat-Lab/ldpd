@@ -411,13 +411,15 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
         return msg->length();
     }
 
-    if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) {
-        log_debug("got label mapping from ldp session with %s.\n", nei_id_str);
+    if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING || msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
+        const char *msgname = msg->getType() == LDP_MSGTYPE_LABEL_MAPPING ? "lbl mapping" : "lbl withdraw";
+
+        log_debug("got %s message from %s.\n", msgname, nei_id_str);
 
         const LdpRawTlv *fec = msg->getTlv(LDP_TLVTYPE_FEC);
 
         if (fec == nullptr) {
-            log_error("mapping mseesge from %s does not have a fec tlv.\n", nei_id_str);
+            log_error("%s mseesge from %s does not have a fec tlv.\n", msgname, nei_id_str);
             from->sendNotification(msg->getId(), 0, LDP_SC_MISSING_MSG_PARAM);
             return -1;
         }
@@ -425,7 +427,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
         LdpFecTlvValue *fec_val = (LdpFecTlvValue *) fec->getParsedValue();
 
         if (fec_val == nullptr) {
-            log_error("cannot understand the fec tlv in mapping message from %s.\n", nei_id_str);
+            log_error("cannot understand the fec tlv in %s message from %s.\n", msgname, nei_id_str);
             from->sendNotification(msg->getId(), fec->getType(), LDP_SC_MALFORMED_TLV_VAL);
             return -1;
         }
@@ -433,7 +435,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
         const LdpRawTlv *lbl = msg->getTlv(LDP_TLVTYPE_GENERIC_LABEL); // todo: other label?
 
         if (lbl == nullptr) {
-            log_error("mapping mseesge from %s does not have a label tlv.\n", nei_id_str);
+            log_error("%s mseesge from %s does not have a label tlv.\n", msgname, nei_id_str);
             from->sendNotification(msg->getId(), 0, LDP_SC_MISSING_MSG_PARAM);
             return -1;
         }
@@ -441,12 +443,10 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
         LdpGenericLabelTlvValue *lbl_val = (LdpGenericLabelTlvValue *) lbl->getParsedValue();
 
         if (lbl_val == nullptr) {
-            log_error("cannot understand the label tlv in mapping message from %s.\n", nei_id_str);
+            log_error("cannot understand the label tlv in %s message from %s.\n", msgname, nei_id_str);
             from->sendNotification(msg->getId(), lbl->getType(), LDP_SC_MALFORMED_TLV_VAL);
             return -1;
         }
-
-        // todo: check and reject conflicting labels
 
         if (_remote_mappings.count(key) == 0) {
             _remote_mappings[key] = std::set<LdpLabelMapping>();
@@ -474,9 +474,39 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
                 log_debug("prefix: %s/%d.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
             }
 
-            _remote_mappings[key].insert(mapping);
+            if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) {
+                _remote_mappings[key].insert(mapping);
+            }
+
+            if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
+                _remote_mappings[key].erase(mapping);
+                _pending_delete_remote_mappings.insert(mapping);
+            }
+
         }
 
+        if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
+            LdpPdu pdu = LdpPdu();
+
+            LdpMessage *release_msg = new LdpMessage();
+
+            release_msg->setType(LDP_MSGTYPE_LABEL_RELEASE);
+            pdu.addMessage(release_msg);
+
+            LdpRawTlv *fec = new LdpRawTlv();
+            fec->setValue(fec_val);
+
+            release_msg->addTlv(fec);
+
+            LdpRawTlv *lbl = new LdpRawTlv();
+            lbl->setValue(lbl_val);
+
+            release_msg->addTlv(lbl);
+            release_msg->recalculateLength();
+
+            from->send(pdu);
+        }
+        
         delete lbl_val;
         delete fec_val;
 
@@ -485,12 +515,6 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
 
     if (msg->getType() == LDP_MSGTYPE_LABEL_REQUEST) { // todo
         log_debug("got label request from ldp session with %s.\n", nei_id_str);
-
-        return msg->length();
-    }
-
-    if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) { // todo
-        log_debug("got label withdraw from ldp session with %s.\n", nei_id_str);
 
         return msg->length();
     }
