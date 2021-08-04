@@ -23,6 +23,7 @@ int main() {
     d = &ldpd;
 
     signal(SIGINT, handle_sig);
+    signal(SIGPIPE, SIG_IGN);
 
     ldpd.setTransportAddress(ta);
     ldpd.addInterface("ens33");
