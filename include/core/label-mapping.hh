@@ -10,7 +10,8 @@ struct LdpLabelMapping {
     LdpLabelMapping();
     LdpLabelMapping(uint32_t label, Prefix pfx);
 
-    bool operator==(const LdpLabelMapping &other);
+    bool operator==(const LdpLabelMapping &other) const;
+    bool operator<(const LdpLabelMapping &other) const;
 
     uint32_t label;
     Prefix fec;

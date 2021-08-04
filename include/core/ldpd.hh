@@ -77,7 +77,8 @@ private:
     void sendHello();
     void createSession(uint32_t nei_id, uint16_t nei_ls);
 
-    void installMappings();
+    void createLocalMappings();
+    void refreshMappings();
 
     uint16_t getHoldTime(uint64_t of);
 
@@ -116,9 +117,10 @@ private:
     std::map<uint64_t, std::vector<uint32_t>> _addresses;
 
     // mappings of peers.
-    std::map<uint64_t, std::vector<LdpLabelMapping>> _mappings;
-    std::vector<LdpLabelMapping> _installed_mappings;
-    std::vector<LdpLabelMapping> _pending_delete_mappings;
+    std::map<uint64_t, std::set<LdpLabelMapping>> _remote_mappings;
+    std::set<LdpLabelMapping> _installed_remote_mappings;
+    std::set<LdpLabelMapping> _rejected_remote_mappings;
+    std::set<LdpLabelMapping> _pending_delete_remote_mappings;
 
     // interface cache
     std::vector<Interface> _ifaces;
@@ -127,9 +129,9 @@ private:
     std::set<RoutingProtocol> _srcs;
 
     // local mappings
-    std::map<uint64_t, std::vector<LdpLabelMapping>> _local_mappings;
-    std::vector<LdpLabelMapping> _installed_local_mappings;
-    std::vector<LdpLabelMapping> _pending_delete_local_mappings;
+    std::set<LdpLabelMapping> _local_mappings;
+    std::set<LdpLabelMapping> _installed_local_mappings;
+    std::set<LdpLabelMapping> _pending_delete_local_mappings;
 
     // timers
     uint16_t _hello;
