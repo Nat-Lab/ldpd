@@ -201,7 +201,11 @@ int Netlink::sendRouteMessage(const Route *route, unsigned short type, unsigned 
         return 1;
     }
 
-    return getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) __FUNCTION__);
+    int err;
+    
+    getReply((unsigned int) seq, Netlink::commonAckHandler, (void *) &err);
+
+    return err;
 }
 
 int Netlink::sendGeneralQuery(unsigned char af, unsigned short type, unsigned short flags) {
@@ -609,7 +613,11 @@ int Netlink::parseNetlinkMessage(MplsRoute &dst, const struct nlmsghdr *src) {
 
 }
 
-int Netlink::commonAckHandler(void *caller, const struct nlmsghdr *msg) {
+int Netlink::commonAckHandler(void *e, const struct nlmsghdr *msg) {
+    int *retval = (int *) e;
+
+    *retval = 0;
+
     if (msg->nlmsg_type == NLMSG_DONE) {
         return PROCESS_END;
     }
@@ -621,7 +629,8 @@ int Netlink::commonAckHandler(void *caller, const struct nlmsghdr *msg) {
             return PROCESS_END;
         }
 
-        log_error("rtnl reported error: %s (requested by %s)\n", strerror(-err->error), (const char *) caller);
+        log_error("rtnl reported error: %s.\n", strerror(-err->error));
+        *retval = err->error;
 
         return PROCESS_ERR;
     }

@@ -57,10 +57,17 @@ public:
     }
 
     template <typename T> int deleteRoute(const T &route) {
-        return sendRouteMessage(
+        int ret = sendRouteMessage(
             (const Route *) &route,
             RTM_DELROUTE,
             NLM_F_REQUEST | NLM_F_ACK);
+
+        if (ret == -ESRCH) {
+            log_debug("route is alredy gone.\n");
+            return 0;
+        }
+
+        return ret;
     }
 
     // note: the Interface object passed in WILL NOT have addresses filled.
@@ -90,7 +97,7 @@ private:
     static int procressInterfaceResults(void *ifaces, const struct nlmsghdr *);
     static int procressIpv4RouteResults(void *routes, const struct nlmsghdr *);
     static int procressMplsRouteResults(void *routes, const struct nlmsghdr *);
-    static int commonAckHandler(void *unused, const struct nlmsghdr *msg);
+    static int commonAckHandler(void *err, const struct nlmsghdr *msg);
 
     static int buildRtAttr(const Ipv4Route &route, RtAttr &attrs);
     static int buildRtAttr(const MplsRoute &route, RtAttr &attrs);

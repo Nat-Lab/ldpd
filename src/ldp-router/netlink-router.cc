@@ -144,7 +144,7 @@ void NetlinkRouter::pushRib() {
         if (route->getType() == RouteType::Mpls) {
             MplsRoute *r = (MplsRoute *) route;
             log_debug("(mpls) adding route to %u tp fib...\n", r->in_label);
-            if (_nl.addRoute(*r) == 0) {
+            if (_nl.addRoute(*r, true) == 0) {
                 handleFibUpdate(NetlinkChange::Added, *r);
                 continue;
             }
@@ -153,7 +153,7 @@ void NetlinkRouter::pushRib() {
         if (route->getType() == RouteType::Ipv4) {
             Ipv4Route *r = (Ipv4Route *) route;
             log_debug("(ipv4) adding route to %s/%u to fib...\n", inet_ntoa(*(struct in_addr *) &(r->dst)), r->dst_len);
-            if (_nl.addRoute(*r) == 0) {
+            if (_nl.addRoute(*r, true) == 0) {
                 handleFibUpdate(NetlinkChange::Added, *r);
                 continue;
             }
