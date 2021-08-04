@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <linux/mpls_iptunnel.h>
+#include <net/if.h>
 
 namespace ldpd {
 
@@ -459,6 +460,11 @@ int Netlink::parseNetlinkMessage(Interface &dst, const struct nlmsghdr *src) {
     const struct ifinfomsg *iface = (const struct ifinfomsg *) NLMSG_DATA(src);
 
     dst.index = iface->ifi_index;
+    dst.up = iface->ifi_flags & IFF_UP;
+    dst.loopback = iface->ifi_flags & IFF_LOOPBACK;
+    dst.ptp = iface->ifi_flags & IFF_POINTOPOINT;
+    dst.running = iface->ifi_flags & IFF_RUNNING;
+    dst.noarp = iface->ifi_flags & IFF_NOARP;
 
     RtAttr attrs = RtAttr();
     attrs.parse((uint8_t *) IFLA_RTA(iface), RTM_PAYLOAD(src));

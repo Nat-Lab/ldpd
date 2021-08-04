@@ -16,9 +16,20 @@ struct InterfaceAddress {
 struct Interface {
     Interface() : ifname("unset"), addresses() {
         index = 0;
+        up = false;
+        loopback = false;
+        ptp = false;
+        running = false;
+        noarp = false;
     }
 
     int index;
+
+    bool up;
+    bool loopback;
+    bool ptp;
+    bool running;
+    bool noarp;
 
     std::string ifname;
 
