@@ -502,7 +502,8 @@ int Netlink::parseNetlinkMessage(Ipv4Route &dst, const struct nlmsghdr *src) {
 
     if (!attrs.getAttributeValue(RTA_DST, dst.dst)) { log_warn("ignored a route w/ no rta_dst.\n"); return PARSE_SKIP; }
     if (!attrs.getAttributeValue(RTA_OIF, dst.oif)) { log_warn("ignored a route w/ no rta_oif.\n"); return PARSE_SKIP; }
-    if (!attrs.getAttributeValue(RTA_GATEWAY, dst.gw)) { log_warn("ignored a route w/ no rta_gw.\n"); return PARSE_SKIP; }
+    
+    attrs.getAttributeValue(RTA_GATEWAY, dst.gw);
 
     short enctype;
 
@@ -631,7 +632,11 @@ int Netlink::commonAckHandler(void *caller, const struct nlmsghdr *msg) {
 int Netlink::buildRtAttr(const Ipv4Route &route, RtAttr &attrs) {
     attrs.addAttribute(RTA_OIF, route.oif);
     attrs.addAttribute(RTA_DST, route.dst);
-    attrs.addAttribute(RTA_GATEWAY, route.gw);
+
+    if (route.gw != 0) {
+        attrs.addAttribute(RTA_GATEWAY, route.gw);
+    }
+    
     attrs.addAttribute(RTA_PRIORITY, route.metric);
 
     if (route.mpls_encap && route.mpls_stack.size() > 0) {
