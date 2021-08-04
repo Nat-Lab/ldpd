@@ -1137,14 +1137,28 @@ void Ldpd::refreshMappings() {
 
         route->in_label = mapping.label;
         route->oif = lo_ifid;
-        route->metric = _metric;
 
         _router->addRoute(route);
 
         _installed_local_mappings.insert(mapping);
     }
 
+    for (std::set<LdpLabelMapping>::iterator i = _pending_delete_local_mappings.begin(); i != _pending_delete_local_mappings.end(); i = _pending_delete_local_mappings.erase(i)) {
+        MplsRoute route = MplsRoute();
+        route.in_label = i->label;
 
+        _router->deleteRoute(route.hash());
+    }
+
+    for (std::set<LdpLabelMapping>::iterator i = _pending_delete_remote_mappings.begin(); i != _pending_delete_remote_mappings.end(); i = _pending_delete_remote_mappings.erase(i)) {
+        Ipv4Route route = Ipv4Route();
+        route.dst = i->fec.prefix;
+        route.dst_len = i->fec.len;
+
+        _rejected_remote_mappings.erase(*i);
+
+        _router->deleteRoute(route.hash());
+    }
 }
 
 void Ldpd::handleNewSession(LdpFsm* of) {
