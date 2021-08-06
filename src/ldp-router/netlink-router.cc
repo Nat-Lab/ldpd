@@ -143,7 +143,7 @@ void NetlinkRouter::pushRib() {
 
         if (route->getType() == RouteType::Mpls) {
             MplsRoute *r = (MplsRoute *) route;
-            log_debug("(mpls) adding route to %u tp fib...\n", r->in_label);
+            log_debug("(mpls) adding route to %u to fib...\n", r->in_label);
             if (_nl.addRoute(*r, true) == 0) {
                 handleFibUpdate(NetlinkChange::Added, *r);
                 continue;
