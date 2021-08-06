@@ -124,7 +124,7 @@ private:
     std::map<uint64_t, std::vector<LdpLabelMapping>> _mappings;
     std::map<uint64_t, std::set<LdpLabelMapping>> _exported_mappings;
     std::map<uint64_t, std::set<LdpLabelMapping>> _rejected_mappings;
-    std::set<LdpLabelMapping> _pending_delete_mappings;
+    std::map<uint64_t, std::set<LdpLabelMapping>> _pending_delete_mappings;
 
     // interface cache
     std::vector<Interface> _ifaces;

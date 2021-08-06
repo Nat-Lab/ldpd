@@ -483,12 +483,14 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
 
             if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
                 log_debug("scheduling route deletion...\n");
-                _pending_delete_mappings.insert(mapping);
+                _pending_delete_mappings[key].insert(mapping);
             }
 
         }
 
-        if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
+        if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) { 
+            // this sends release even if the given lbl is never mapped - but whatever.
+
             LdpPdu pdu = LdpPdu();
 
             LdpMessage *release_msg = new LdpMessage();
@@ -587,7 +589,7 @@ void Ldpd::removeSession(LdpFsm* of) {
 
     if (_mappings.count(key) != 0) {
         for (const LdpLabelMapping &mapping : _mappings[key]) {
-            _pending_delete_mappings.insert(mapping);
+            _pending_delete_mappings[key].insert(mapping);
         }
 
         _mappings.erase(key);
@@ -1211,32 +1213,56 @@ void Ldpd::refreshMappings() {
         _router->addRoute(route);
     }
 
-    for (std::set<LdpLabelMapping>::iterator i = _pending_delete_mappings.begin(); i != _pending_delete_mappings.end(); i = _pending_delete_mappings.erase(i)) {
-        log_debug("del mapping %s %s/%u in %u out %u.\n", i->remote ? "remote" : "local", inet_ntoa(*(struct in_addr *) &(i->fec.prefix)), i->fec.len, i->in_label, i->out_label);
-        if (i->remote) {
-            Ipv4Route v4 = Ipv4Route();
-            v4.dst = i->fec.prefix;
-            v4.dst_len = i->fec.len;
-            _router->deleteRoute(&v4);
+    for (std::map<uint64_t, std::set<LdpLabelMapping>>::iterator i = _pending_delete_mappings.begin(); i != _pending_delete_mappings.end(); ++i) {
+        uint64_t key = i->first;
 
-            // todo: fix this mess
-            for (std::map<uint64_t, std::vector<LdpLabelMapping>>::iterator j = _mappings.begin(); j != _mappings.end(); ++j) {
-                for (std::vector<LdpLabelMapping>::iterator k = j->second.begin(); k != j->second.end();) {
-                    if (i->fec == k->fec) {
-                        MplsRoute route = MplsRoute();
-                        route.in_label = k->in_label;
-                        _router->deleteRoute(&route);
-
-                        k = j->second.erase(k);
-                    } else {
-                        ++k;
-                    }
-                }
+        for (std::set<LdpLabelMapping>::iterator j = i->second.begin(); j != i->second.end(); j = i->second.erase(j)) {
+            if (!j->remote) {
+                MplsRoute route = MplsRoute();
+                route.in_label = j->in_label;
+                _router->deleteRoute(&route);
+                continue;
             }
-        } else {
-            MplsRoute route = MplsRoute();
-            route.in_label = i->in_label;
-            _router->deleteRoute(&route);
+
+            // if not local, in_label is not filled. find out what was assiged by looking at the mapping
+            if (_mappings.count(key) == 0) {
+                log_error("no mapping ever existed but trying to remove? something is wrong.\n");
+                continue;
+            }
+
+            std::vector<LdpLabelMapping> &mappings = _mappings[key];
+
+            for (std::vector<LdpLabelMapping>::iterator k = mappings.begin(); k != mappings.end(); ) {
+                if (!k->remote) {
+                    log_error("mapping with type local found in mappingdb for remote? something is wrong.\n");
+                    ++k;
+                    continue;
+                }
+
+                if (j->fec == k->fec) {
+                    MplsRoute m = MplsRoute();
+                    m.in_label = k->in_label;
+                    _router->deleteRoute(&m);
+
+                    Ipv4Route r = Ipv4Route();
+                    r.dst = k->fec.prefix;
+                    r.dst_len = k->fec.len;
+
+                    if (k->out_label != 3) {
+                        r.mpls_encap = true;
+                        r.mpls_stack.push_back(k->out_label);
+                    }
+                    
+                    _router->deleteRoute(&r);
+
+                    k = mappings.erase(k);
+                    continue;
+                }
+
+                ++k;
+            }
+            
+            
         }
 
     }
