@@ -161,6 +161,8 @@ int Ldpd::stop() {
         return 0;
     }
 
+    log_info("shutting down...\n");
+
     _running = false;
 
     close(_ufd);
@@ -536,6 +538,8 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
 }
 
 void Ldpd::shutdownSession(LdpFsm* of, int32_t code, uint32_t msgid, uint16_t msgtype) {
+    uint64_t key = LDP_KEY(of->getNeighborId(), of->getNeighborLabelSpace());
+
     for (std::pair<int, LdpFsm *> _fd : _fds) {
         if (_fd.second == of) {
             log_info("closing fd %d.\n", _fd.first);
@@ -546,6 +550,10 @@ void Ldpd::shutdownSession(LdpFsm* of, int32_t code, uint32_t msgid, uint16_t ms
             close(_fd.first);
         }
     }
+
+    _exported_mappings.erase(key);
+
+
 }
 
 void Ldpd::removeSession(LdpFsm* of) {
@@ -1048,13 +1056,19 @@ uint16_t Ldpd::getHoldTime(uint64_t of) {
     return peer_hold < _hold ? peer_hold : _hold;
 }
 
-void Ldpd::installRemoteMapping(uint64_t key, LdpLabelMapping &mapping) {
+void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
+    if (!mapping.remote) {
+        log_error("this method handles remote mapping only.\n");
+        return;
+    }
+
+
     if (_addresses.count(key) == 0) {
         log_error("mapping exists, but no addresses?\n");
         return;
     }
 
-    if (!shouldInstall(mapping)) {
+    if (!shouldInstall(mapping, key)) {
         return;
     }
 
@@ -1101,7 +1115,7 @@ void Ldpd::installRemoteMapping(uint64_t key, LdpLabelMapping &mapping) {
     }
 
     if (local || filtered) {
-        _rejected_mappings.push_back(mapping);
+        mapping.hidden = true;
         return;
     }
 
@@ -1150,13 +1164,13 @@ void Ldpd::installRemoteMapping(uint64_t key, LdpLabelMapping &mapping) {
 void Ldpd::refreshMappings() {
     uint64_t self_key = LDP_KEY(_id, _space);
 
-    for (std::pair<uint64_t, std::vector<LdpLabelMapping>> mappings : _mappings) {
-        for (LdpLabelMapping &mapping : mappings.second) {
-            if (mappings.first == self_key) {
+    for (std::map<uint64_t, std::vector<LdpLabelMapping>>::iterator i = _mappings.begin(); i != _mappings.end(); ++i) {
+        for (LdpLabelMapping &mapping : i->second) {
+            if (self_key == i->first) {
                 continue;
             }
 
-            installRemoteMapping(mappings.first, mapping);
+            installMapping(i->first, mapping);
         }
     }
 
@@ -1173,37 +1187,120 @@ void Ldpd::refreshMappings() {
         return;
     }
 
-    /*for (const LdpLabelMapping &mapping : _local_mappings) {
-        if (isEquivalentMappingActive(true, mapping)) {
+    if (_mappings.count(self_key) == 0) {
+        log_error("no local mappings vector? something is not quite right.\n");
+        return;
+    }
+
+    std::vector<LdpLabelMapping> local_mappings = _mappings[self_key];
+
+    for (const LdpLabelMapping &mapping : local_mappings) {
+        if (!shouldInstall(mapping)) {
             continue;
         }
 
-        log_debug("adding route for delivering traffic for label %u locally...\n", mapping.label);
+        log_debug("adding route for delivering traffic for label %u locally...\n", mapping.in_label);
 
         MplsRoute *route = new MplsRoute();
 
-        route->in_label = mapping.label;
+        route->in_label = mapping.in_label;
         route->oif = lo_ifid;
 
         _router->addRoute(route);
     }
 
-    for (std::set<LdpLabelMapping>::iterator i = _pending_delete_local_mappings.begin(); i != _pending_delete_local_mappings.end(); i = _pending_delete_local_mappings.erase(i)) {
-        MplsRoute route = MplsRoute();
-        route.in_label = i->label;
-
-        _router->deleteRoute(route.hash());
+    for (std::vector<LdpLabelMapping>::iterator i = _pending_delete_mappings.begin(); i != _pending_delete_mappings.end(); i = _pending_delete_mappings.erase(i)) {
+        if (i->remote) {
+            Ipv4Route route = Ipv4Route();
+            route.dst = i->fec.prefix;
+            route.dst_len = i->fec.len;
+        } else {
+            MplsRoute route = MplsRoute();
+            route.in_label = i->in_label;
+            _router->deleteRoute(route.hash());
+        }
     }
 
-    for (std::set<LdpLabelMapping>::iterator i = _pending_delete_remote_mappings.begin(); i != _pending_delete_remote_mappings.end(); i = _pending_delete_remote_mappings.erase(i)) {
-        Ipv4Route route = Ipv4Route();
-        route.dst = i->fec.prefix;
-        route.dst_len = i->fec.len;
+    for (std::pair<uint64_t, LdpFsm *> session : _fsms) {
+        if (session.second->getState() != LdpSessionState::Operational) {
+            continue;
+        }
 
-        _rejected_remote_mappings.erase(*i);
+        LdpPdu pdu = LdpPdu();
 
-        _router->deleteRoute(route.hash());
-    }*/
+        LdpMessage *mapping_msg = new LdpMessage();
+        pdu.addMessage(mapping_msg);
+
+        mapping_msg->setType(LDP_MSGTYPE_LABEL_MAPPING);
+        mapping_msg->setId(getNextMessageId());
+
+        uint64_t nei_key = session.first;
+        uint64_t local_key = LDP_KEY(_id, _space);
+
+        bool send = false;
+
+        for (const std::pair<uint64_t, std::vector<LdpLabelMapping>> &mappings : _mappings) {
+            uint64_t this_key = mappings.first;
+
+            if (this_key == nei_key) {
+                continue;
+            }
+
+            if (_exported_mappings.count(this_key) == 0) {
+                _exported_mappings[this_key] = std::set<LdpLabelMapping>();
+            }
+
+            for (const LdpLabelMapping &mapping : mappings.second) {
+                if (!mapping.remote && this_key != local_key) {
+                    log_error("got non-remote mapping in non-local mapping db?\n");
+                    continue;
+                }
+
+                if (mapping.hidden || _exported_mappings[this_key].count(mapping) != 0) {
+                    continue;
+                }
+
+                _exported_mappings[this_key].insert(mapping);
+
+                LdpRawTlv *fec = new LdpRawTlv();
+                mapping_msg->addTlv(fec);
+
+                LdpFecTlvValue fec_val = LdpFecTlvValue();
+
+                LdpFecPrefixElement *pel = new LdpFecPrefixElement();
+
+                pel->setPrefix(mapping.fec.prefix);
+                pel->setPrefixLength(mapping.fec.len);
+
+                fec_val.addElement(pel);
+                
+                fec->setValue(&fec_val);
+
+                LdpRawTlv *lbl = new LdpRawTlv();
+
+                LdpGenericLabelTlvValue lbl_val = LdpGenericLabelTlvValue();
+                lbl_val.setLabel(mapping.in_label);
+
+                lbl->setValue(&lbl_val);
+
+                mapping_msg->addTlv(lbl);
+
+                send = true;
+
+                if (mapping.remote) {
+                    log_debug("sending remote (transit) binding fec %s/%u swap %u with %u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len, mapping.in_label, mapping.out_label);
+                } else {
+                    log_debug("sending local binding %s/%u lbl %u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len, mapping.in_label);
+                }
+
+            }
+        }
+
+        if (send) {
+            mapping_msg->recalculateLength();
+            session.second->send(pdu);
+        }
+    }
 }
 
 void Ldpd::handleNewSession(LdpFsm* of) {
@@ -1243,49 +1340,6 @@ void Ldpd::handleNewSession(LdpFsm* of) {
 
     // don't need recalc-len for pdu, fsm does it in send()
     of->send(pdu);
-
-    /*pdu.clearMessages();
-
-    LdpMessage *mapping_msg = new LdpMessage();
-    pdu.addMessage(mapping_msg);
-
-    mapping_msg->setType(LDP_MSGTYPE_LABEL_MAPPING);
-    mapping_msg->setId(getNextMessageId());
-
-    for (const LdpLabelMapping &mapping : _local_mappings) {
-        LdpRawTlv *fec = new LdpRawTlv();
-        mapping_msg->addTlv(fec);
-
-        LdpFecTlvValue fec_val = LdpFecTlvValue();
-
-        LdpFecPrefixElement *pel = new LdpFecPrefixElement();
-
-        pel->setPrefix(mapping.fec.prefix);
-        pel->setPrefixLength(mapping.fec.len);
-
-        fec_val.addElement(pel);
-        
-        fec->setValue(&fec_val);
-
-        LdpRawTlv *lbl = new LdpRawTlv();
-
-        LdpGenericLabelTlvValue lbl_val = LdpGenericLabelTlvValue();
-        lbl_val.setLabel(mapping.label);
-
-        lbl->setValue(&lbl_val);
-
-        mapping_msg->addTlv(lbl);
-        
-        log_debug("sending local binding %s/%u lbl %u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len, mapping.label);
-    }
-
-    mapping_msg->recalculateLength();
-
-    if (_local_mappings.size() == 0) {
-        return;
-    }
-
-    of->send(pdu);*/
 }
 
 void Ldpd::setImportPolicy(const RoutePolicy &policy) {
@@ -1319,7 +1373,7 @@ void Ldpd::addRouteSource(RoutingProtocol proto) {
 uint32_t Ldpd::getNextLabel() const {
     std::set<uint32_t> used = std::set<uint32_t>();
 
-    for (std::pair<uint64_t, std::vector<LdpLabelMapping>> mappings : _mappings) {
+    for (const std::pair<uint64_t, std::vector<LdpLabelMapping>> &mappings : _mappings) {
         for (const LdpLabelMapping &mapping : mappings.second) {
             used.insert(mapping.in_label);
         }
@@ -1338,6 +1392,15 @@ uint32_t Ldpd::getNextLabel() const {
 
 void Ldpd::createLocalMappings() {
     log_debug("creating local mappings...\n");
+
+    uint64_t local_key = LDP_KEY(_id, _space);
+
+    if (_mappings.count(local_key) != 0) {
+        log_error("local mapping already exists. updates are handled by the change listeners.\n");
+        return;
+    }
+
+    _mappings[local_key] = std::vector<LdpLabelMapping>();
 
     for (std::pair<uint64_t, Route *> r : _router->getFib()) {
         if (r.second->getType() != RouteType::Ipv4) {
@@ -1363,17 +1426,34 @@ void Ldpd::createLocalMappings() {
             return;
         }
 
-        /* _local_mappings.insert(LdpLabelMapping(label, pfx)); */
-        
+        LdpLabelMapping mapping = LdpLabelMapping();
+
+        mapping.remote = false;
+        mapping.fec = pfx;
+        mapping.in_label = label;
+
+        _mappings[local_key].push_back(mapping);
+
         log_debug("created binding %s/%u lbl %u.\n", inet_ntoa(*(struct in_addr *) &(pfx.prefix)), pfx.len, label);
     }
 }
 
-bool Ldpd::shouldInstall(const LdpLabelMapping &mapping) {
+bool Ldpd::shouldInstall(const LdpLabelMapping &mapping, uint64_t key) {
+    if (mapping.hidden) {
+        return false;
+    }
+
     if (mapping.remote) {
-        for (const LdpLabelMapping &r : _rejected_mappings) {
-            if (r.out_label == mapping.out_label) {
-                return false;
+        if (key == 0) {
+            log_warn("mapping is from remote, but key not passed to us.\n");
+            return false;
+        }
+
+        if (_mappings.count(key) != 0) {
+            for (const LdpLabelMapping &m : _mappings[key]) {
+                if (mapping == m && m.hidden) { // note: not a real eq check; see mapping op == code.
+                    return false;
+                }
             }
         }
     }

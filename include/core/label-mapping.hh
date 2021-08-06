@@ -13,6 +13,7 @@ struct LdpLabelMapping {
     bool operator<(const LdpLabelMapping &other) const;
 
     bool remote;
+    bool hidden;
 
     uint32_t in_label;
     uint32_t out_label;

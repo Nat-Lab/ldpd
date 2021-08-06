@@ -68,8 +68,7 @@ public:
 
 private:
 
-    void installLocalMapping(LdpLabelMapping &mapping);
-    void installRemoteMapping(uint64_t key, LdpLabelMapping &mapping);
+    void installMapping(uint64_t key, LdpLabelMapping &mapping);
 
     void scanInterfaces();
 
@@ -87,7 +86,7 @@ private:
 
     uint32_t getNextLabel() const;
 
-    bool shouldInstall(const LdpLabelMapping &mapping);
+    bool shouldInstall(const LdpLabelMapping &mapping, uint64_t src = 0);
 
     uint32_t _id;
     uint16_t _space;
@@ -123,7 +122,8 @@ private:
 
     // mappings of peers.
     std::map<uint64_t, std::vector<LdpLabelMapping>> _mappings;
-    std::vector<LdpLabelMapping> _rejected_mappings;
+    std::map<uint64_t, std::set<LdpLabelMapping>> _exported_mappings;
+    std::map<uint64_t, std::set<LdpLabelMapping>> _rejected_mappings;
     std::vector<LdpLabelMapping> _pending_delete_mappings;
 
     // interface cache
