@@ -12,11 +12,11 @@ public:
 
     std::vector<Interface> getInterfaces();
 
-    std::map<uint64_t, Route *> getRoutes();
-    std::map<uint64_t, Route *> getFib();
+    std::vector<const Route *> getRoutes();
+    std::vector<const Route *> getFib();
 
     uint64_t addRoute(Route *route);
-    bool deleteRoute(uint64_t routeIndex);
+    bool deleteRoute(const Route *selector);
 
     void onRouteChange(void* data, ldp_routechange_handler_t handler);
 
@@ -32,13 +32,19 @@ private:
     template <typename T> void handleFibUpdate(NetlinkChange change, const T &route) {
         uint64_t key = route.hash();
 
-        if (_fib.count(key) != 0) {
-            delete _fib[key];
-            _fib.erase(key);
+        // though I opted for no-auto, this is wayyy to longggg.
+        auto range = _fib.equal_range(key);
+
+        for (auto i = range.first; i != range.second; ++i) {
+            if (route.matches(i->second)) {
+                delete i->second;
+                _fib.erase(i);
+                return;
+            }
         }
 
         if (change == NetlinkChange::Added) {
-            _fib[key] = new T(route);
+            _fib.insert(std::make_pair(key, new T(route)));
         }
     }
 
@@ -51,11 +57,11 @@ private:
     }
 
     Netlink _nl;
-    std::map<uint64_t, Route *> _rib;
+    std::multimap<uint64_t, Route *> _rib;
 
     std::vector<Route *> _rib_pending_del;
 
-    std::map<uint64_t, Route *> _fib;
+    std::multimap<uint64_t, Route *> _fib;
 
     ldp_routechange_handler_t _onroutechange;
     void *_routechange_data;

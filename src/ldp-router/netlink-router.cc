@@ -51,26 +51,45 @@ std::vector<Interface> NetlinkRouter::getInterfaces() {
     return ifaces;
 }
 
-std::map<uint64_t, Route *> NetlinkRouter::getFib() {
-    return _fib;
+std::vector<const Route *> NetlinkRouter::getFib() {
+    std::vector<const Route *> rslt = std::vector<const Route *>();
+
+    for (std::pair<uint64_t, Route *> r : _fib) {
+        rslt.push_back(r.second);
+    }
+
+    return rslt;
 }
 
-std::map<uint64_t, Route *> NetlinkRouter::getRoutes() {
-    return _rib;
+std::vector<const Route *>  NetlinkRouter::getRoutes() {
+    std::vector<const Route *> rslt = std::vector<const Route *>();
+
+    for (std::pair<uint64_t, Route *> r : _rib) {
+        rslt.push_back(r.second);
+    }
+
+    return rslt;
 }
 
 uint64_t NetlinkRouter::addRoute(Route *route) {
     uint64_t key = route->hash();
-    deleteRoute(key);
-    _rib[key] = route;
+    deleteRoute(route);
+    _rib.insert(std::make_pair(key, route));
     return key;
 }
 
-bool NetlinkRouter::deleteRoute(uint64_t routeIndex) {
-    if (_rib.count(routeIndex) == 1) {
-        _rib_pending_del.push_back(_rib[routeIndex]);
-        _rib.erase(routeIndex);
-        return true;
+bool NetlinkRouter::deleteRoute(const Route *selector) {
+    uint64_t key = selector->hash();
+
+    // though I opted for no-auto, this is wayyy to longggg.
+    auto range = _rib.equal_range(key);
+
+    for (auto i = range.first; i != range.second; ++i) {
+        if (selector->matches(i->second)) {
+            _rib_pending_del.push_back(i->second);
+            _rib.erase(i);
+            return true;
+        }
     }
 
     return false;
@@ -96,11 +115,11 @@ void NetlinkRouter::fetchFib() {
     }
 
     for (Ipv4Route &route : v4) {
-        _fib[route.hash()] = new Ipv4Route(route);
+        _fib.insert(std::make_pair(route.hash(), new Ipv4Route(route)));
     }
 
     for (MplsRoute &route : m) {
-        _fib[route.hash()] = new MplsRoute(route);
+        _fib.insert(std::make_pair(route.hash(), new MplsRoute(route)));
     }
 }
 

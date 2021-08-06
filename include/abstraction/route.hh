@@ -38,6 +38,7 @@ struct Route {
 
     virtual RouteType getType() const = 0;
     virtual uint64_t hash() const = 0;
+    virtual bool matches(const Route *other) const; 
 
 };
 
@@ -55,6 +56,7 @@ struct Ipv4Route : public Route {
 
     virtual RouteType getType() const;
     virtual uint64_t hash() const;
+    virtual bool matches(const Route *other) const;
 };
 
 struct MplsRoute : public Route {
@@ -65,6 +67,7 @@ struct MplsRoute : public Route {
 
     virtual RouteType getType() const;
     virtual uint64_t hash() const;
+    virtual bool matches(const Route *other) const;
 };
 
 } 

@@ -18,11 +18,11 @@ public:
     virtual ~Router() {};
 
     virtual std::vector<Interface> getInterfaces() = 0;
-    virtual std::map<uint64_t, Route *> getFib() = 0;
-    virtual std::map<uint64_t, Route *> getRoutes() = 0;
+    virtual std::vector<const Route *> getFib() = 0;
+    virtual std::vector<const Route *> getRoutes() = 0;
 
     virtual uint64_t addRoute(Route *route) = 0;
-    virtual bool deleteRoute(uint64_t routeIndex) = 0;
+    virtual bool deleteRoute(const Route *selector) = 0;
 
     virtual void onRouteChange(void *data, ldp_routechange_handler_t handler) = 0;
 

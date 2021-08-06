@@ -482,9 +482,8 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
             }
 
             if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
-                auto v = _pending_delete_mappings.insert(mapping);
-                log_debug("scheduling route deletion %d...\n", v.second);
-
+                log_debug("scheduling route deletion...\n");
+                _pending_delete_mappings.insert(mapping);
             }
 
         }
@@ -1166,6 +1165,7 @@ void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
 void Ldpd::refreshMappings() {
     uint64_t self_key = LDP_KEY(_id, _space);
 
+    // not using for-iter, since we need ref to LdpLabelMapping object.
     for (std::map<uint64_t, std::vector<LdpLabelMapping>>::iterator i = _mappings.begin(); i != _mappings.end(); ++i) {
         for (LdpLabelMapping &mapping : i->second) {
             if (self_key == i->first) {
@@ -1213,17 +1213,32 @@ void Ldpd::refreshMappings() {
 
     for (std::set<LdpLabelMapping>::iterator i = _pending_delete_mappings.begin(); i != _pending_delete_mappings.end(); i = _pending_delete_mappings.erase(i)) {
         log_debug("del mapping %s %s/%u in %u out %u.\n", i->remote ? "remote" : "local", inet_ntoa(*(struct in_addr *) &(i->fec.prefix)), i->fec.len, i->in_label, i->out_label);
-
         if (i->remote) {
             Ipv4Route v4 = Ipv4Route();
             v4.dst = i->fec.prefix;
             v4.dst_len = i->fec.len;
-            _router->deleteRoute(v4.hash());
-        } 
+            _router->deleteRoute(&v4);
 
-        MplsRoute route = MplsRoute();
-        route.in_label = i->in_label;
-        _router->deleteRoute(route.hash());
+            // todo: fix this mess
+            for (std::map<uint64_t, std::vector<LdpLabelMapping>>::iterator j = _mappings.begin(); j != _mappings.end(); ++j) {
+                for (std::vector<LdpLabelMapping>::iterator k = j->second.begin(); k != j->second.end();) {
+                    if (i->fec == k->fec) {
+                        MplsRoute route = MplsRoute();
+                        route.in_label = k->in_label;
+                        _router->deleteRoute(&route);
+
+                        k = j->second.erase(k);
+                    } else {
+                        ++k;
+                    }
+                }
+            }
+        } else {
+            MplsRoute route = MplsRoute();
+            route.in_label = i->in_label;
+            _router->deleteRoute(&route);
+        }
+
     }
 
     for (std::pair<uint64_t, LdpFsm *> session : _fsms) {
@@ -1408,12 +1423,12 @@ void Ldpd::createLocalMappings() {
 
     _mappings[local_key] = std::vector<LdpLabelMapping>();
 
-    for (std::pair<uint64_t, Route *> r : _router->getFib()) {
-        if (r.second->getType() != RouteType::Ipv4) {
+    for (const Route* r : _router->getFib()) {
+        if (r->getType() != RouteType::Ipv4) {
             continue;
         }
 
-        Ipv4Route *route = (Ipv4Route *) r.second;
+        Ipv4Route *route = (Ipv4Route *) r;
         Prefix pfx = Prefix(route->dst, route->dst_len);
 
         if (_srcs.count(route->protocol) == 0) {
@@ -1464,17 +1479,17 @@ bool Ldpd::shouldInstall(const LdpLabelMapping &mapping, uint64_t key) {
         }
     }
 
-    for (std::pair<uint64_t, Route*> route : _router->getRoutes()) {
-        if (route.second->getType() == RouteType::Mpls) {
-            MplsRoute *mpls = (MplsRoute *) route.second;
+    for (const Route* route : _router->getRoutes()) {
+        if (route->getType() == RouteType::Mpls) {
+            MplsRoute *mpls = (MplsRoute *) route;
 
             if (mpls->in_label == mapping.in_label) {
                 return false;
             }
         }
 
-        if (route.second->getType() == RouteType::Ipv4) {
-            Ipv4Route *v4 = (Ipv4Route *) route.second;
+        if (route->getType() == RouteType::Ipv4) {
+            Ipv4Route *v4 = (Ipv4Route *) route;
 
             if (v4->dst == mapping.fec.prefix || v4->dst_len == mapping.fec.len) {
                 return false;
