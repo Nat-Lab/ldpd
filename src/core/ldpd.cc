@@ -1108,8 +1108,8 @@ void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
         }
     }
 
-    if (_export.apply(mapping.fec) != FilterAction::Accept) {
-        log_info("mapping rejected by export filter: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
+    if (_import.apply(mapping.fec) != FilterAction::Accept) {
+        log_info("mapping rejected by import filter: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
         // todo: reject mapping??
         filtered = true;
     }
@@ -1228,14 +1228,12 @@ void Ldpd::refreshMappings() {
 
         LdpPdu pdu = LdpPdu();
 
-        LdpMessage *mapping_msg = new LdpMessage();
-        pdu.addMessage(mapping_msg);
-
-        mapping_msg->setType(LDP_MSGTYPE_LABEL_MAPPING);
-        mapping_msg->setId(getNextMessageId());
-
         uint64_t nei_key = session.first;
         uint64_t local_key = LDP_KEY(_id, _space);
+
+        if (_exported_mappings.count(nei_key) == 0) {
+            _exported_mappings[nei_key] = std::set<LdpLabelMapping>();
+        }
 
         bool send = false;
 
@@ -1246,21 +1244,23 @@ void Ldpd::refreshMappings() {
                 continue;
             }
 
-            if (_exported_mappings.count(this_key) == 0) {
-                _exported_mappings[this_key] = std::set<LdpLabelMapping>();
-            }
-
             for (const LdpLabelMapping &mapping : mappings.second) {
                 if (!mapping.remote && this_key != local_key) {
                     log_error("got non-remote mapping in non-local mapping db?\n");
                     continue;
                 }
 
-                if (mapping.hidden || _exported_mappings[this_key].count(mapping) != 0) {
+                if (mapping.hidden || _exported_mappings[nei_key].count(mapping) != 0) {
                     continue;
                 }
 
-                _exported_mappings[this_key].insert(mapping);
+                _exported_mappings[nei_key].insert(mapping);
+
+                LdpMessage *mapping_msg = new LdpMessage();
+                pdu.addMessage(mapping_msg);
+
+                mapping_msg->setType(LDP_MSGTYPE_LABEL_MAPPING);
+                mapping_msg->setId(getNextMessageId());
 
                 LdpRawTlv *fec = new LdpRawTlv();
                 mapping_msg->addTlv(fec);
@@ -1285,6 +1285,8 @@ void Ldpd::refreshMappings() {
 
                 mapping_msg->addTlv(lbl);
 
+                mapping_msg->recalculateLength();
+
                 send = true;
 
                 if (mapping.remote) {
@@ -1297,7 +1299,6 @@ void Ldpd::refreshMappings() {
         }
 
         if (send) {
-            mapping_msg->recalculateLength();
             session.second->send(pdu);
         }
     }
@@ -1411,12 +1412,12 @@ void Ldpd::createLocalMappings() {
         Prefix pfx = Prefix(route->dst, route->dst_len);
 
         if (_srcs.count(route->protocol) == 0) {
-            log_debug("import reject %s/%u - protocol %u not allowed.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len, route->protocol);
+            log_debug("export reject %s/%u - protocol %u not allowed.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len, route->protocol);
             continue;
         }
 
-        if (_import.apply(pfx) != FilterAction::Accept) {
-            log_debug("import reject %s/%u - rejected by filter.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len);
+        if (_export.apply(pfx) != FilterAction::Accept) {
+            log_debug("export reject %s/%u - rejected by filter.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len);
             continue;
         }
 

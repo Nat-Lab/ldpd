@@ -17,11 +17,14 @@ bool LdpLabelMapping::operator==(const LdpLabelMapping &other) const {
         return false;
     }
 
-    return fec == other.fec && (remote ? (out_label == other.out_label) : (in_label == other.in_label));
+    return remote ? (fec == other.fec) : (in_label == other.in_label);
 }
 
 bool LdpLabelMapping::operator<(const LdpLabelMapping &other) const {
-    return remote ? (out_label < other.out_label) : (in_label < other.in_label);
+    uint64_t self_val = (remote ? 0xfffff : 0) + out_label + in_label;
+    uint64_t other_val = (other.remote ? 0xfffff : 0) + other.out_label + other.in_label;
+
+    return self_val < other_val;
 }
 
 }
