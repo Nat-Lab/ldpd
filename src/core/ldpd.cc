@@ -482,7 +482,9 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
             }
 
             if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
-                // TODO
+                auto v = _pending_delete_mappings.insert(mapping);
+                log_debug("scheduling route deletion %d...\n", v.second);
+
             }
 
         }
@@ -586,7 +588,7 @@ void Ldpd::removeSession(LdpFsm* of) {
 
     if (_mappings.count(key) != 0) {
         for (const LdpLabelMapping &mapping : _mappings[key]) {
-            _pending_delete_mappings.push_back(mapping);
+            _pending_delete_mappings.insert(mapping);
         }
 
         _mappings.erase(key);
@@ -1209,16 +1211,19 @@ void Ldpd::refreshMappings() {
         _router->addRoute(route);
     }
 
-    for (std::vector<LdpLabelMapping>::iterator i = _pending_delete_mappings.begin(); i != _pending_delete_mappings.end(); i = _pending_delete_mappings.erase(i)) {
+    for (std::set<LdpLabelMapping>::iterator i = _pending_delete_mappings.begin(); i != _pending_delete_mappings.end(); i = _pending_delete_mappings.erase(i)) {
+        log_debug("del mapping %s %s/%u in %u out %u.\n", i->remote ? "remote" : "local", inet_ntoa(*(struct in_addr *) &(i->fec.prefix)), i->fec.len, i->in_label, i->out_label);
+
         if (i->remote) {
-            Ipv4Route route = Ipv4Route();
-            route.dst = i->fec.prefix;
-            route.dst_len = i->fec.len;
-        } else {
-            MplsRoute route = MplsRoute();
-            route.in_label = i->in_label;
-            _router->deleteRoute(route.hash());
-        }
+            Ipv4Route v4 = Ipv4Route();
+            v4.dst = i->fec.prefix;
+            v4.dst_len = i->fec.len;
+            _router->deleteRoute(v4.hash());
+        } 
+
+        MplsRoute route = MplsRoute();
+        route.in_label = i->in_label;
+        _router->deleteRoute(route.hash());
     }
 
     for (std::pair<uint64_t, LdpFsm *> session : _fsms) {

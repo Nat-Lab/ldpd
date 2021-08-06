@@ -12,12 +12,7 @@ LdpLabelMapping::LdpLabelMapping() : fec() {
 }
 
 bool LdpLabelMapping::operator==(const LdpLabelMapping &other) const {
-    if (remote != other.remote) {
-        log_warn("comparing between remote and local binding is invalid.\n");
-        return false;
-    }
-
-    return remote ? (fec == other.fec) : (in_label == other.in_label);
+    return remote == other.remote && (remote ? (fec == other.fec) : (in_label == other.in_label));
 }
 
 bool LdpLabelMapping::operator<(const LdpLabelMapping &other) const {
