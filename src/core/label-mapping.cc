@@ -3,19 +3,17 @@
 namespace ldpd {
 
 LdpLabelMapping::LdpLabelMapping() : fec() {
-    label = 0;
-}
-
-LdpLabelMapping::LdpLabelMapping(uint32_t label, Prefix pfx) : fec(pfx) {
-    this->label = label;
+    in_label = 0;
+    out_label = 0;
+    remote = 0;
 }
 
 bool LdpLabelMapping::operator==(const LdpLabelMapping &other) const {
-    return label == other.label && fec == other.fec;
+    return fec == other.fec && remote == other.remote && (remote ? (out_label == other.out_label) : (in_label == other.in_label));
 }
 
 bool LdpLabelMapping::operator<(const LdpLabelMapping &other) const {
-    return label < other.label;
+    return remote ? (out_label < other.out_label) : (in_label < other.in_label);
 }
 
 }

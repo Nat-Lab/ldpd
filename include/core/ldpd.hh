@@ -68,6 +68,9 @@ public:
 
 private:
 
+    void installLocalMapping(LdpLabelMapping &mapping);
+    void installRemoteMapping(uint64_t key, LdpLabelMapping &mapping);
+
     void scanInterfaces();
 
     void handleSession();
@@ -84,7 +87,7 @@ private:
 
     uint32_t getNextLabel() const;
 
-    bool isEquivalentMappingActive(bool local, const LdpLabelMapping &mapping);
+    bool shouldInstall(const LdpLabelMapping &mapping);
 
     uint32_t _id;
     uint16_t _space;
@@ -119,19 +122,15 @@ private:
     std::map<uint64_t, std::vector<uint32_t>> _addresses;
 
     // mappings of peers.
-    std::map<uint64_t, std::set<LdpLabelMapping>> _remote_mappings;
-    std::set<LdpLabelMapping> _rejected_remote_mappings;
-    std::set<LdpLabelMapping> _pending_delete_remote_mappings;
+    std::map<uint64_t, std::vector<LdpLabelMapping>> _mappings;
+    std::vector<LdpLabelMapping> _rejected_mappings;
+    std::vector<LdpLabelMapping> _pending_delete_mappings;
 
     // interface cache
     std::vector<Interface> _ifaces;
 
     // where to load routes to assign labels
     std::set<RoutingProtocol> _srcs;
-
-    // local mappings
-    std::set<LdpLabelMapping> _local_mappings;
-    std::set<LdpLabelMapping> _pending_delete_local_mappings;
 
     // timers
     uint16_t _hello;

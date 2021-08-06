@@ -18,8 +18,8 @@ namespace ldpd {
 Ldpd::Ldpd(uint32_t routerId, uint16_t labelSpace, Router *router, int metric) : 
     _import(FilterAction::Reject), _export(FilterAction::Accept), _ldp_ifaces(),
     _fsms(), _fds(), _hellos(), _holds(), _transports(), _addresses(),
-    _remote_mappings(), _pending_delete_remote_mappings(), _ifaces(), _srcs(),
-    _local_mappings(), _pending_delete_local_mappings() {
+    _mappings(), _rejected_mappings(), _pending_delete_mappings(), _ifaces(),
+    _srcs() {
 
     _running = false;
     _id = routerId;
@@ -448,15 +448,16 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
             return -1;
         }
 
-        if (_remote_mappings.count(key) == 0) {
-            _remote_mappings[key] = std::set<LdpLabelMapping>();
+        if (_mappings.count(key) == 0) {
+            _mappings[key] = std::vector<LdpLabelMapping>();
         }
 
         log_debug("label: %u\n", lbl_val->getLabel());
 
         for (const LdpFecElement *el : fec_val->getElements()) {
             LdpLabelMapping mapping = LdpLabelMapping();
-            mapping.label = lbl_val->getLabel();
+            mapping.remote = true;
+            mapping.out_label = lbl_val->getLabel();
 
             if (el->getType() == 0x01) {
                 mapping.fec.prefix = 0;
@@ -475,12 +476,11 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
             }
 
             if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) {
-                _remote_mappings[key].insert(mapping);
+                _mappings[key].push_back(mapping);
             }
 
             if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
-                _remote_mappings[key].erase(mapping);
-                _pending_delete_remote_mappings.insert(mapping);
+                // TODO
             }
 
         }
@@ -576,12 +576,12 @@ void Ldpd::removeSession(LdpFsm* of) {
 
     _addresses.erase(key);
 
-    if (_remote_mappings.count(key) != 0) {
-        for (const LdpLabelMapping &mapping : _remote_mappings[key]) {
-            _pending_delete_remote_mappings.insert(mapping);
+    if (_mappings.count(key) != 0) {
+        for (const LdpLabelMapping &mapping : _mappings[key]) {
+            _pending_delete_mappings.push_back(mapping);
         }
 
-        _remote_mappings.erase(key);
+        _mappings.erase(key);
     }
 
     uint32_t nei_id = (uint32_t) (key >> sizeof(uint16_t));
@@ -1048,88 +1048,115 @@ uint16_t Ldpd::getHoldTime(uint64_t of) {
     return peer_hold < _hold ? peer_hold : _hold;
 }
 
-void Ldpd::refreshMappings() {
-    for (std::pair<uint64_t, std::set<LdpLabelMapping>> mappings : _remote_mappings) {
-        for (const LdpLabelMapping &mapping : mappings.second) {
-            if (_addresses.count(mappings.first) == 0) {
-                log_error("mapping exists, but no addresses?\n");
-                continue;
-            }
+void Ldpd::installRemoteMapping(uint64_t key, LdpLabelMapping &mapping) {
+    if (_addresses.count(key) == 0) {
+        log_error("mapping exists, but no addresses?\n");
+        return;
+    }
 
-            if (isEquivalentMappingActive(false, mapping)|| _rejected_remote_mappings.count(mapping) != 0) {
-                continue;
-            }
+    if (!shouldInstall(mapping)) {
+        return;
+    }
 
-            std::vector<uint32_t> addresses = _addresses[mappings.first];
+    std::vector<uint32_t> addresses = _addresses[key];
 
-            bool local = false, filtered = false;
-            Interface *nh_iface = nullptr;
-            uint32_t nh_address = 0;
+    bool local = false, filtered = false;
+    Interface *nh_iface = nullptr;
+    uint32_t nh_address = 0;
 
-            for (Interface &iface : _ifaces) {
-                for (InterfaceAddress &addr : iface.addresses) {
-                    Prefix peer = Prefix();
-                    peer.len = 32;
-                    
-                    for (uint32_t &address : addresses) {
-                        peer.prefix = address;
+    for (Interface &iface : _ifaces) {
+        for (InterfaceAddress &addr : iface.addresses) {
+            Prefix peer = Prefix();
+            peer.len = 32;
+            
+            for (uint32_t &address : addresses) {
+                peer.prefix = address;
 
-                        if (addr.address.includes(peer)) {
-                            nh_address = address;
-                            nh_iface = &iface;
-                            break;
-                        }
-
-                        if (addr.address.isInSameNetwork(mapping.fec)) {
-                            local = true;
-                            break;
-                        }
-                    }
-
-                    if (nh_iface != nullptr || local) {
-                        break;
-                    }
+                if (addr.address.includes(peer)) {
+                    nh_address = address;
+                    nh_iface = &iface;
+                    break;
                 }
 
-                if (nh_iface != nullptr || local) {
+                if (addr.address.isInSameNetwork(mapping.fec)) {
+                    local = true;
                     break;
                 }
             }
 
-            if (_export.apply(mapping.fec) != FilterAction::Accept) {
-                log_info("mapping rejected by export filter: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
-                // todo: reject mapping??
-                filtered = true;
+            if (nh_iface != nullptr || local) {
+                break;
             }
+        }
 
-            if (local || filtered) {
-                _rejected_remote_mappings.insert(mapping);
+        if (nh_iface != nullptr || local) {
+            break;
+        }
+    }
+
+    if (_export.apply(mapping.fec) != FilterAction::Accept) {
+        log_info("mapping rejected by export filter: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
+        // todo: reject mapping??
+        filtered = true;
+    }
+
+    if (local || filtered) {
+        _rejected_mappings.push_back(mapping);
+        return;
+    }
+
+    if (nh_iface == nullptr) {
+        log_error("cannot find a way to reach the neighbor.\n");
+        return;
+    }
+
+    Ipv4Route *ir = new Ipv4Route();
+
+    ir->gw = nh_address;
+    ir->oif = nh_iface->index;
+    ir->dst = mapping.fec.prefix;
+    ir->dst_len = mapping.fec.len;
+    ir->metric = _metric;
+
+    log_debug("adding route: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(ir->dst)), ir->dst_len);
+    log_debug("gw: %s oif %d.\n", inet_ntoa(*(struct in_addr *) &(ir->gw)), ir->oif);
+
+    if (mapping.out_label != 3) {
+        ir->mpls_encap = true;
+        ir->mpls_stack.push_back(mapping.out_label);
+        log_debug("out label: %u.\n", mapping.out_label);
+    }
+    
+    _router->addRoute(ir);
+
+    mapping.in_label = getNextLabel();
+
+    MplsRoute *mr = new MplsRoute();
+
+    mr->in_label = mapping.in_label;
+    mr->gw = nh_address;
+    mr->oif = nh_iface->index;
+
+    if (mapping.out_label != 3) {
+        mr->mpls_encap = true;
+        mr->mpls_stack.push_back(mapping.out_label);
+    }
+
+    log_debug("in label: %u.\n", mapping.in_label);
+
+    _router->addRoute(mr);
+}
+
+void Ldpd::refreshMappings() {
+    uint64_t self_key = LDP_KEY(_id, _space);
+
+    for (std::pair<uint64_t, std::vector<LdpLabelMapping>> mappings : _mappings) {
+        for (LdpLabelMapping &mapping : mappings.second) {
+            if (mappings.first == self_key) {
                 continue;
             }
 
-            if (nh_iface == nullptr) {
-                log_error("cannot find a way to reach the neighbor.\n");
-                continue;
-            }
-
-            Ipv4Route *route = new Ipv4Route();
-
-            route->gw = nh_address;
-            route->oif = nh_iface->index;
-            route->dst = mapping.fec.prefix;
-            route->dst_len = mapping.fec.len;
-            route->metric = _metric;
-
-            log_debug("adding route: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len);
-            log_debug("gw: %s oif %d.\n", inet_ntoa(*(struct in_addr *) &(route->gw)), route->oif);
-
-            if (mapping.label != 3) {
-                route->mpls_encap = true;
-                route->mpls_stack.push_back(mapping.label);
-                log_debug("out label: %u.\n", mapping.label);
-            }
-            
-            _router->addRoute(route);
+            installRemoteMapping(mappings.first, mapping);
         }
     }
 
@@ -1146,7 +1173,7 @@ void Ldpd::refreshMappings() {
         return;
     }
 
-    for (const LdpLabelMapping &mapping : _local_mappings) {
+    /*for (const LdpLabelMapping &mapping : _local_mappings) {
         if (isEquivalentMappingActive(true, mapping)) {
             continue;
         }
@@ -1176,7 +1203,7 @@ void Ldpd::refreshMappings() {
         _rejected_remote_mappings.erase(*i);
 
         _router->deleteRoute(route.hash());
-    }
+    }*/
 }
 
 void Ldpd::handleNewSession(LdpFsm* of) {
@@ -1217,7 +1244,7 @@ void Ldpd::handleNewSession(LdpFsm* of) {
     // don't need recalc-len for pdu, fsm does it in send()
     of->send(pdu);
 
-    pdu.clearMessages();
+    /*pdu.clearMessages();
 
     LdpMessage *mapping_msg = new LdpMessage();
     pdu.addMessage(mapping_msg);
@@ -1258,7 +1285,7 @@ void Ldpd::handleNewSession(LdpFsm* of) {
         return;
     }
 
-    of->send(pdu);
+    of->send(pdu);*/
 }
 
 void Ldpd::setImportPolicy(const RoutePolicy &policy) {
@@ -1292,8 +1319,10 @@ void Ldpd::addRouteSource(RoutingProtocol proto) {
 uint32_t Ldpd::getNextLabel() const {
     std::set<uint32_t> used = std::set<uint32_t>();
 
-    for (const LdpLabelMapping &mapping : _local_mappings) {
-        used.insert(mapping.label);
+    for (std::pair<uint64_t, std::vector<LdpLabelMapping>> mappings : _mappings) {
+        for (const LdpLabelMapping &mapping : mappings.second) {
+            used.insert(mapping.in_label);
+        }
     }
 
     for (uint32_t i = LDP_MIN_LBL; i <= LDP_MAX_LBL; ++i) {
@@ -1334,38 +1363,40 @@ void Ldpd::createLocalMappings() {
             return;
         }
 
-        _local_mappings.insert(LdpLabelMapping(label, pfx));
+        /* _local_mappings.insert(LdpLabelMapping(label, pfx)); */
         
         log_debug("created binding %s/%u lbl %u.\n", inet_ntoa(*(struct in_addr *) &(pfx.prefix)), pfx.len, label);
     }
 }
 
-bool Ldpd::isEquivalentMappingActive(bool local, const LdpLabelMapping &mapping) {
-    for (std::pair<uint64_t, Route*> route : _router->getRoutes()) {
-        if (local) {
-            if (route.second->getType() != RouteType::Mpls) {
-                continue;
-            }
-
-            MplsRoute *mpls = (MplsRoute *) route.second;
-
-            if (mpls->in_label == mapping.label) {
-                return true;
-            }
-        } else {
-            if (route.second->getType() != RouteType::Ipv4) {
-                continue;
-            }
-
-            Ipv4Route *v4 = (Ipv4Route *) route.second;
-
-            if (v4->dst == mapping.fec.prefix || v4->dst_len == mapping.fec.len) {
-                return true;
+bool Ldpd::shouldInstall(const LdpLabelMapping &mapping) {
+    if (mapping.remote) {
+        for (const LdpLabelMapping &r : _rejected_mappings) {
+            if (r.out_label == mapping.out_label) {
+                return false;
             }
         }
     }
 
-    return false;
+    for (std::pair<uint64_t, Route*> route : _router->getRoutes()) {
+        if (route.second->getType() == RouteType::Mpls) {
+            MplsRoute *mpls = (MplsRoute *) route.second;
+
+            if (mpls->in_label == mapping.in_label) {
+                return false;
+            }
+        }
+
+        if (route.second->getType() == RouteType::Ipv4) {
+            Ipv4Route *v4 = (Ipv4Route *) route.second;
+
+            if (v4->dst == mapping.fec.prefix || v4->dst_len == mapping.fec.len) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 }
