@@ -417,8 +417,6 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
     if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING || msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
         const char *msgname = msg->getType() == LDP_MSGTYPE_LABEL_MAPPING ? "lbl mapping" : "lbl withdraw";
 
-        log_debug("got %s message from %s.\n", msgname, nei_id_str);
-
         const LdpRawTlv *fec = msg->getTlv(LDP_TLVTYPE_FEC);
 
         if (fec == nullptr) {
@@ -455,8 +453,6 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
             _mappings[key] = std::vector<LdpLabelMapping>();
         }
 
-        log_debug("label: %u\n", lbl_val->getLabel());
-
         for (const LdpFecElement *el : fec_val->getElements()) {
             LdpLabelMapping mapping = LdpLabelMapping();
             mapping.remote = true;
@@ -466,7 +462,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
                 mapping.fec.prefix = 0;
                 mapping.fec.len = 0;
                 
-                log_debug("prefix: 0.0.0.0/0.\n");
+                log_debug("%s: %s: prefix: 0.0.0.0/0 lbl %u\n", nei_id_str, msgname, lbl_val->getLabel());
             }
 
             if (el->getType() == 0x02) {
@@ -475,7 +471,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
                 mapping.fec.len = e->getPrefixLength();
                 mapping.fec.prefix = e->getPrefix();
 
-                log_debug("prefix: %s/%d.\n", InetNtop(mapping.fec.prefix).str, mapping.fec.len);
+                log_debug("%s: %s: prefix: %s/%d lbl %u.\n", nei_id_str, msgname, InetNtop(mapping.fec.prefix).str, mapping.fec.len, lbl_val->getLabel());
             }
 
             if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) {
@@ -483,7 +479,6 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
             }
 
             if (msg->getType() == LDP_MSGTYPE_LABEL_WITHDRAW) {
-                log_debug("scheduling route deletion...\n");
                 _pending_delete_mappings[key].insert(mapping);
             }
 
@@ -574,11 +569,11 @@ void Ldpd::removeSession(LdpFsm* of) {
         }
     }
 
-    uint64_t key = 0;
+    uint64_t key = LDP_KEY(of->getNeighborId(), of->getLocalLabelSpace());
     for (; sit != _fsms.end(); ++sit) {
         if (sit->second == of) {
             key = sit->first;
-            if(!fd_del) {
+            if (!fd_del) {
                 delete sit->second;
             }
             _fsms.erase(sit);
@@ -1061,6 +1056,9 @@ uint16_t Ldpd::getHoldTime(uint64_t of) {
 }
 
 void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
+    uint32_t nei_addr = (uint32_t) (key >> sizeof(uint16_t));
+    const char *nei_addr_str = InetNtop(nei_addr).str;
+
     if (!mapping.remote) {
         log_error("this method handles remote mapping only.\n");
         return;
@@ -1135,7 +1133,7 @@ void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
     ir->dst_len = mapping.fec.len;
     ir->metric = _metric;
 
-    log_debug("adding route: %s/%u via %s oif %d, outlbl %u.\n", InetNtop(ir->dst).str, ir->dst_len, InetNtop(ir->gw).str, ir->oif, mapping.out_label);
+    log_debug("adding route: %s/%u via %s oif %d, outlbl %u by %s.\n", InetNtop(ir->dst).str, ir->dst_len, InetNtop(ir->gw).str, ir->oif, mapping.out_label, nei_addr_str);
 
     if (mapping.out_label != 3) {
         ir->mpls_encap = true;
@@ -1157,7 +1155,7 @@ void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
         mr->mpls_stack.push_back(mapping.out_label);
     }
 
-    log_debug("in label: %u.\n", mapping.in_label);
+    log_debug("adding route: in %u out %u by %s.\n", mapping.in_label, mapping.out_label, nei_addr_str);
 
     _router->addRoute(mr);
 }
@@ -1275,6 +1273,8 @@ void Ldpd::refreshMappings() {
         uint64_t nei_key = session.first;
         uint64_t local_key = LDP_KEY(_id, _space);
 
+        const char *nei_id_str = InetNtop(session.second->getNeighborId()).str;
+
         if (_exported_mappings.count(nei_key) == 0) {
             _exported_mappings[nei_key] = std::set<LdpLabelMapping>();
         }
@@ -1283,6 +1283,8 @@ void Ldpd::refreshMappings() {
 
         for (const std::pair<uint64_t, std::vector<LdpLabelMapping>> &mappings : _mappings) {
             uint64_t this_key = mappings.first;
+            uint32_t src_id = (uint32_t) (this_key << sizeof(uint16_t));
+            const char *src_id_str = InetNtop(src_id).str;
 
             if (this_key == nei_key) {
                 continue;
@@ -1338,9 +1340,9 @@ void Ldpd::refreshMappings() {
                 send = true;
 
                 if (mapping.remote) {
-                    log_debug("sending remote (transit) binding fec %s/%u swap %u with %u.\n", InetNtop(mapping.fec.prefix).str, mapping.fec.len, mapping.in_label, mapping.out_label);
+                    log_debug("sending %s transit binding fec %s/%u swap %u with %u, learned from %s.\n", nei_id_str, InetNtop(mapping.fec.prefix).str, mapping.fec.len, mapping.in_label, mapping.out_label, src_id_str);
                 } else {
-                    log_debug("sending local binding %s/%u lbl %u.\n", InetNtop(mapping.fec.prefix).str, mapping.fec.len, mapping.in_label);
+                    log_debug("sending %s local binding %s/%u lbl %u.\n", nei_id_str, InetNtop(mapping.fec.prefix).str, mapping.fec.len, mapping.in_label);
                 }
 
             }
