@@ -1509,9 +1509,8 @@ bool Ldpd::installed(const LdpLabelMapping &mapping) {
     }
 
     if (mapping.remote) {
-        if (has_v4 != has_mpls) {
-            log_error("inconsistent: only v4 or only mpls route installed for a remote binding?\n");
-            return false;
+        if (has_mpls && !has_v4) {
+            log_warn("inconsistent: mpls in label exists but no v4 route installed for a remote binding?\n");
         }
 
         if (has_mpls) {
