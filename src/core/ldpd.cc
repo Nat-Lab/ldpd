@@ -591,8 +591,6 @@ void Ldpd::removeSession(LdpFsm* of) {
         for (const LdpLabelMapping &mapping : _mappings[key]) {
             _pending_delete_mappings[key].insert(mapping);
         }
-
-        _mappings.erase(key);
     }
 
     uint32_t nei_id = (uint32_t) (key >> sizeof(uint16_t));
@@ -1065,7 +1063,6 @@ void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
         return;
     }
 
-
     if (_addresses.count(key) == 0) {
         log_error("mapping exists, but no addresses?\n");
         return;
@@ -1296,7 +1293,11 @@ void Ldpd::refreshMappings() {
                     continue;
                 }
 
-                if (mapping.hidden || _exported_mappings[nei_key].count(mapping) != 0) {
+                if (_exported_mappings[nei_key].count(mapping) != 0) {
+                    continue;
+                }
+
+                if (!shouldSend(mapping)) {
                     continue;
                 }
 
@@ -1485,6 +1486,58 @@ void Ldpd::createLocalMappings() {
     }
 }
 
+bool Ldpd::installed(const LdpLabelMapping &mapping) {
+    bool has_mpls = false, has_v4 = false;
+    for (const Route* route : _router->getRoutes()) {
+        if (route->getType() == RouteType::Mpls) {
+            MplsRoute *mpls = (MplsRoute *) route;
+
+            if (mpls->in_label == mapping.in_label) {
+                has_mpls = true;
+                continue;
+            }
+        }
+
+        if (route->getType() == RouteType::Ipv4) {
+            Ipv4Route *v4 = (Ipv4Route *) route;
+
+            if (v4->dst == mapping.fec.prefix || v4->dst_len == mapping.fec.len) {
+                has_v4 = true;
+                continue;
+            }
+        }
+    }
+
+    if (mapping.remote) {
+        if (has_v4 != has_mpls) {
+            log_error("inconsistent: only v4 or only mpls route installed for a remote binding?\n");
+            return false;
+        }
+
+        if (has_mpls) {
+            return true;
+        }
+    }
+
+    if (!mapping.remote && has_mpls) {
+        return true;
+    }
+
+    return false;
+}
+
+bool Ldpd::shouldSend(const LdpLabelMapping &mapping) {
+    if (!mapping.remote) {
+        return true;
+    }
+
+    if (mapping.hidden) {
+        return false;
+    }
+
+    return installed(mapping);
+}
+
 bool Ldpd::shouldInstall(const LdpLabelMapping &mapping, uint64_t key) {
     if (mapping.hidden) {
         return false;
@@ -1505,25 +1558,7 @@ bool Ldpd::shouldInstall(const LdpLabelMapping &mapping, uint64_t key) {
         }
     }
 
-    for (const Route* route : _router->getRoutes()) {
-        if (route->getType() == RouteType::Mpls) {
-            MplsRoute *mpls = (MplsRoute *) route;
-
-            if (mpls->in_label == mapping.in_label) {
-                return false;
-            }
-        }
-
-        if (route->getType() == RouteType::Ipv4) {
-            Ipv4Route *v4 = (Ipv4Route *) route;
-
-            if (v4->dst == mapping.fec.prefix || v4->dst_len == mapping.fec.len) {
-                return false;
-            }
-        }
-    }
-
-    return true;
+    return !installed(mapping);
 }
 
 }

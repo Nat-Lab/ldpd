@@ -32,14 +32,16 @@ private:
     template <typename T> void handleFibUpdate(NetlinkChange change, const T &route) {
         uint64_t key = route.hash();
 
-        // though I opted for no-auto, this is wayyy to longggg.
-        auto range = _fib.equal_range(key);
+        if (change == NetlinkChange::Deleted && _fib.count(key) > 0) {
+            // though I opted for no-auto, this is wayyy to longggg.
+            auto range = _fib.equal_range(key);
 
-        for (auto i = range.first; i != range.second; ++i) {
-            if (route.matches(i->second)) {
-                delete i->second;
-                _fib.erase(i);
-                return;
+            for (auto i = range.first; i != range.second; ++i) {
+                if (route.matches(i->second)) {
+                    delete i->second;
+                    _fib.erase(i);
+                    return;
+                }
             }
         }
 

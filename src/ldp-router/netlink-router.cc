@@ -73,7 +73,6 @@ std::vector<const Route *>  NetlinkRouter::getRoutes() {
 
 uint64_t NetlinkRouter::addRoute(Route *route) {
     uint64_t key = route->hash();
-    deleteRoute(route);
     _rib.insert(std::make_pair(key, route));
     return key;
 }
@@ -154,8 +153,20 @@ void NetlinkRouter::pushRib() {
     }
 
     for (std::pair<uint64_t, Route *> r : _rib) {
-        if (_fib.count(r.first) != 0) {
-            continue;
+        if (_fib.count(r.first) > 0) {
+            bool hit = false;
+            auto range = _rib.equal_range(r.first);
+
+            for (auto i = range.first; i != range.second; ++i) {
+                if (r.second->matches(i->second)) {
+                    hit = true;
+                    break;
+                }
+            }
+
+            if (hit) {
+                continue;
+            }
         }
 
         Route *route = r.second;

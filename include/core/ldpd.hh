@@ -87,6 +87,8 @@ private:
     uint32_t getNextLabel() const;
 
     bool shouldInstall(const LdpLabelMapping &mapping, uint64_t src = 0);
+    bool installed(const LdpLabelMapping &mapping);
+    bool shouldSend(const LdpLabelMapping &mapping);
 
     uint32_t _id;
     uint16_t _space;
