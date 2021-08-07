@@ -1,4 +1,5 @@
 #include "utils/log.hh"
+#include "utils/inet-ntop.hh"
 #include "core/ldpd.hh"
 #include "ldp-fsm/ldp-fsm.hh"
 #include "ldp-tlv/ldp-tlv.hh"
@@ -196,7 +197,7 @@ void Ldpd::tick() {
         if (_now - hello->second > getHoldTime(hello->first)) {
             uint32_t nei_id = (uint32_t) (hello->first >> sizeof(uint16_t));
 
-            log_info("hello adj with %s removed - hold expired.\n", inet_ntoa(*(struct in_addr *) &nei_id));
+            log_info("hello adj with %s removed - hold expired.\n", InetNtop(nei_id).str);
 
             if (_holds.count(hello->first)) {
                 _holds[hello->first] = 0xffff;
@@ -321,7 +322,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
     uint32_t nei_id = from->getNeighborId();
     uint64_t key = LDP_KEY(nei_id, from->getNeighborLabelSpace());
 
-    const char *nei_id_str = inet_ntoa(*(struct in_addr *) &(nei_id));
+    const char *nei_id_str = InetNtop(nei_id).str;
 
     if (msg->getType() == LDP_MSGTYPE_NOTIFICATION) {
         log_info("got notification from %s.\n", nei_id_str);
@@ -399,7 +400,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
         _addresses[key] = std::vector<uint32_t>(addrs_val->getAddresses());
 
         for (uint32_t &addr : _addresses[key]) {
-            log_debug("address: %s.\n", inet_ntoa(*(struct in_addr *) &(addr)));
+            log_debug("address: %s.\n", InetNtop(addr).str);
         }
 
         delete addrs_val;
@@ -474,7 +475,7 @@ ssize_t Ldpd::handleMessage(LdpFsm* from, const LdpMessage *msg) {
                 mapping.fec.len = e->getPrefixLength();
                 mapping.fec.prefix = e->getPrefix();
 
-                log_debug("prefix: %s/%d.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
+                log_debug("prefix: %s/%d.\n", InetNtop(mapping.fec.prefix).str, mapping.fec.len);
             }
 
             if (msg->getType() == LDP_MSGTYPE_LABEL_MAPPING) {
@@ -595,7 +596,7 @@ void Ldpd::removeSession(LdpFsm* of) {
 
     uint32_t nei_id = (uint32_t) (key >> sizeof(uint16_t));
 
-    log_info("session with %s removed.\n", inet_ntoa(*(struct in_addr *) &nei_id));
+    log_info("session with %s removed.\n", InetNtop(nei_id).str);
 }
 
 void Ldpd::handleHello() {
@@ -677,15 +678,17 @@ void Ldpd::handleHello() {
 
     ssize_t res = pdu.parse(buffer, len);
 
+    const char* remote_addr_str = InetNtop(remote.sin_addr.s_addr).str;
+
     if (res < 0) {
-        log_info("invalid pdu from %s:%u (cannot understand).\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        log_info("invalid pdu from %s:%u (cannot understand).\n", remote_addr_str, ntohs(remote.sin_port));
         return;
     }
 
     const LdpMessage *hello = pdu.getMessage(LDP_MSGTYPE_HELLO);
 
     if (hello == nullptr) {
-        log_info("invalid pdu from %s:%u (no hello body).\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        log_info("invalid pdu from %s:%u (no hello body).\n", remote_addr_str, ntohs(remote.sin_port));
         return;
     }
 
@@ -693,7 +696,7 @@ void Ldpd::handleHello() {
     uint16_t nei_ls = pdu.getLabelSpace();
 
     if (nei_id == _id) {
-        log_error("invalid pdu from %s: they have the same router-id as us.\n", inet_ntoa(remote.sin_addr));
+        log_error("invalid pdu from %s: they have the same router-id as us.\n", remote_addr_str);
         return;
     }
 
@@ -702,14 +705,14 @@ void Ldpd::handleHello() {
     const LdpRawTlv *params = hello->getTlv(LDP_TLVTYPE_COMMON_HELLO);
 
     if (params == nullptr) {
-        log_info("invalid hello msg from %s:%u (no hello params tlv).\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        log_info("invalid hello msg from %s:%u (no hello params tlv).\n", remote_addr_str, ntohs(remote.sin_port));
         return;
     }
 
     LdpCommonHelloParamsTlvValue *params_val = (LdpCommonHelloParamsTlvValue *) params->getParsedValue();
 
     if (params_val == nullptr) {
-        log_info("invalid hello msg from %s:%u (cannot understand hello params tlv).\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+        log_info("invalid hello msg from %s:%u (cannot understand hello params tlv).\n", remote_addr_str, ntohs(remote.sin_port));
         return;
     }
 
@@ -719,9 +722,10 @@ void Ldpd::handleHello() {
 
     delete params_val;
 
+    const char *nei_id_str = InetNtop(nei_id).str;
+
     if (!_hellos.count(key) || _now - _hellos[key] > _hold) {
-        log_info("got a new hello from %s:%u.\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
-        log_info("their id: %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
+        log_info("got a new hello from %s:%u, id: %s:%u.\n", remote_addr_str, ntohs(remote.sin_port), nei_id_str, nei_ls);
     } 
 
     _hellos[key] = _now;
@@ -736,7 +740,7 @@ void Ldpd::handleHello() {
     const LdpIpv4TransportAddressTlvValue *ta_tlv_val = (const LdpIpv4TransportAddressTlvValue *) ta_tlv->getParsedValue();
 
     if (ta_tlv_val == nullptr) {
-        log_warn("%s:%u included a transport-address tlv in hello, but we don't understand it.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
+        log_warn("%s:%u included a transport-address tlv in hello, but we don't understand it.\n", nei_id_str, nei_ls);
         return;
     }
 
@@ -745,18 +749,17 @@ void Ldpd::handleHello() {
     delete ta_tlv_val;
 
     if (_transports.count(key) == 0 || _transports[key] != ta) {
-        log_info("learned transport address for %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
-        log_info("transport address: %s.\n", inet_ntoa(*(struct in_addr *) &ta));
+        log_info("learned transport address for %s:%u - %s.\n", nei_id_str, nei_ls, InetNtop(ta).str);
         _transports[key] = ta;
 
         if (_fsms.count(key) == 0 && ntohl(_transport) < ntohl(ta)) {
-            log_debug("no running session with %s:%d but they have higher transport-address - not sending init.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
+            log_debug("no running session with %s:%d but they have higher transport-address - not sending init.\n", nei_id_str, nei_ls);
         }
     }
 
     if (_fsms.count(key) == 0) {
         if (ntohl(_transport) > ntohl(ta)) {
-            log_debug("no running session with %s:%d and we have higher transport-address, sending init...\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
+            log_debug("no running session with %s:%d and we have higher transport-address, sending init...\n", nei_id_str, nei_ls);
             createSession(nei_id, nei_ls);
         }
     }
@@ -780,7 +783,7 @@ void Ldpd::handleSession() {
         return;
     }
 
-    log_info("new tcp connection from %s:%u.\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+    log_info("new tcp connection from %s:%u.\n", InetNtop(remote.sin_addr.s_addr).str, ntohs(remote.sin_port));
 
     uint8_t buffer[8192];
     ssize_t len = read(fd, buffer, sizeof(buffer));
@@ -819,7 +822,7 @@ void Ldpd::handleSession() {
     uint32_t nei_id = session->getNeighborId();
     uint16_t nei_space = session->getNeighborLabelSpace();
 
-    log_info("neigh lsr-id: %s:%u.\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_space);
+    log_info("neigh lsr-id: %s:%u.\n", InetNtop(nei_id).str, nei_space);
 
     uint32_t key = LDP_KEY(nei_id, nei_space);
 
@@ -981,7 +984,7 @@ ssize_t Ldpd::transmit(LdpFsm* by, const uint8_t *buffer, size_t len) {
 void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
     uint64_t key = LDP_KEY(nei_id, nei_ls);
 
-    log_info("creating new session with lsr-id: %s:%u...\n", inet_ntoa(*(struct in_addr *) &nei_id), nei_ls);
+    log_info("creating new session with lsr-id: %s:%u...\n", InetNtop(nei_id).str, nei_ls);
 
     if (_transports.count(key) == 0 || _fsms.count(key) != 0) {
         log_warn("create-s called when no hello from remote, or session already exist.\n");
@@ -1023,7 +1026,7 @@ void Ldpd::createSession(uint32_t nei_id, uint16_t nei_ls) {
         return;
     }
 
-    log_info("tcp connection to %s:%u established.\n", inet_ntoa(remote.sin_addr), ntohs(remote.sin_port));
+    log_info("tcp connection to %s:%u established.\n", InetNtop(remote.sin_addr.s_addr).str, ntohs(remote.sin_port));
 
     LdpFsm *session = new LdpFsm(this);
 
@@ -1109,7 +1112,7 @@ void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
     }
 
     if (_import.apply(mapping.fec) != FilterAction::Accept) {
-        log_info("mapping rejected by import filter: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len);
+        log_info("mapping rejected by import filter: %s/%u.\n", InetNtop(mapping.fec.prefix).str, mapping.fec.len);
         // todo: reject mapping??
         filtered = true;
     }
@@ -1132,13 +1135,11 @@ void Ldpd::installMapping(uint64_t key, LdpLabelMapping &mapping) {
     ir->dst_len = mapping.fec.len;
     ir->metric = _metric;
 
-    log_debug("adding route: %s/%u.\n", inet_ntoa(*(struct in_addr *) &(ir->dst)), ir->dst_len);
-    log_debug("gw: %s oif %d.\n", inet_ntoa(*(struct in_addr *) &(ir->gw)), ir->oif);
+    log_debug("adding route: %s/%u via %s oif %d, outlbl %u.\n", InetNtop(ir->dst).str, ir->dst_len, InetNtop(ir->gw).str, ir->oif, mapping.out_label);
 
     if (mapping.out_label != 3) {
         ir->mpls_encap = true;
         ir->mpls_stack.push_back(mapping.out_label);
-        log_debug("out label: %u.\n", mapping.out_label);
     }
     
     _router->addRoute(ir);
@@ -1337,9 +1338,9 @@ void Ldpd::refreshMappings() {
                 send = true;
 
                 if (mapping.remote) {
-                    log_debug("sending remote (transit) binding fec %s/%u swap %u with %u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len, mapping.in_label, mapping.out_label);
+                    log_debug("sending remote (transit) binding fec %s/%u swap %u with %u.\n", InetNtop(mapping.fec.prefix).str, mapping.fec.len, mapping.in_label, mapping.out_label);
                 } else {
-                    log_debug("sending local binding %s/%u lbl %u.\n", inet_ntoa(*(struct in_addr *) &(mapping.fec.prefix)), mapping.fec.len, mapping.in_label);
+                    log_debug("sending local binding %s/%u lbl %u.\n", InetNtop(mapping.fec.prefix).str, mapping.fec.len, mapping.in_label);
                 }
 
             }
@@ -1459,12 +1460,12 @@ void Ldpd::createLocalMappings() {
         Prefix pfx = Prefix(route->dst, route->dst_len);
 
         if (_srcs.count(route->protocol) == 0) {
-            log_debug("export reject %s/%u - protocol %u not allowed.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len, route->protocol);
+            log_debug("export reject %s/%u - protocol %u not allowed.\n", InetNtop(route->dst).str, route->dst_len, route->protocol);
             continue;
         }
 
         if (_export.apply(pfx) != FilterAction::Accept) {
-            log_debug("export reject %s/%u - rejected by filter.\n", inet_ntoa(*(struct in_addr *) &(route->dst)), route->dst_len);
+            log_debug("export reject %s/%u - rejected by filter.\n", InetNtop(route->dst).str, route->dst_len);
             continue;
         }
 
@@ -1482,7 +1483,7 @@ void Ldpd::createLocalMappings() {
 
         _mappings[local_key].push_back(mapping);
 
-        log_debug("created binding %s/%u lbl %u.\n", inet_ntoa(*(struct in_addr *) &(pfx.prefix)), pfx.len, label);
+        log_debug("created binding %s/%u lbl %u.\n", InetNtop(pfx.prefix).str, pfx.len, label);
     }
 }
 
