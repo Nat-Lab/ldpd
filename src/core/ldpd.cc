@@ -1283,7 +1283,7 @@ void Ldpd::refreshMappings() {
 
         for (const std::pair<uint64_t, std::vector<LdpLabelMapping>> &mappings : _mappings) {
             uint64_t this_key = mappings.first;
-            uint32_t src_id = (uint32_t) (this_key << sizeof(uint16_t));
+            uint32_t src_id = (uint32_t) (this_key >> sizeof(uint16_t));
             const char *src_id_str = InetNtop(src_id).str;
 
             if (this_key == nei_key) {
